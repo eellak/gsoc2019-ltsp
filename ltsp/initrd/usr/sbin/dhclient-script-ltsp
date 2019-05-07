@@ -1,0 +1,21 @@
+#!/bin/sh
+# This file is part of LTSP, https://ltsp.github.io
+# Copyright 2019 the LTSP team, see AUTHORS
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Wrapper for dracut dhclient-script.
+
+# If root-path is empty (e.g. proxyDHCP), use netroot of /proc/cmdline
+if [ "$reason" = "BOUND" ] || [ "$reason" = "BOUND6" ]; then
+    if [ -z "$new_root_path" ]; then
+        netroot=$(sed 's/.*netroot=\([^ ]*\).*/\1/' /proc/cmdline)
+        # If netroot isn't available, use hardcoded values.
+        if [ "$reason" = "BOUND" ]; then
+            netroot=${netroot:-nbd:192.168.67.1:/opt/ltsp/default}
+        else  # BOUNT6 - untested
+            netroot=${netroot:-nbd:[fe80::1%$interface]:/opt/ltsp/default}
+        fi
+        export "new_root_path=$netroot"
+    fi
+fi
+exec "$0-real" "$@"
