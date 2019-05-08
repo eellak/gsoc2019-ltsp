@@ -46,7 +46,8 @@ main_ltsp_initrd() {
     # Create the initrd
     find "$tmp" ! -name ltsp.img | sed "s|^$tmp/||" | \
         cpio -D "$tmp" -oH newc --quiet | gzip > "$tmp/ltsp.img"
-    ls -l "$tmp/ltsp.img"
-    ΕΔΩ, να το μεταφέρω στο ΤΦΤΠ
-    TFTP=${TFTP:-/var/lib/tftpboot}
+    mkdir -p "$LTSP_TFTP/ltsp"
+    mv "$tmp/ltsp.img" "$LTSP_TFTP/ltsp/"
+    echo "Generated ltsp.img:"
+    ls -l "$LTSP_TFTP/ltsp/ltsp.img"
 }

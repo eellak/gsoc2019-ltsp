@@ -15,8 +15,6 @@
 aa_main() {
     # Always stop on unhandled errors
     set -e
-    # Distributions should replace "1.0" below at build time using `sed`
-    LTSP_VERSION="1.0"
     # Allow overriding LTSP_DIR and LTSP_TOOL
     if [ -z "$LTSP_DIR" ]; then
         LTSP_DIR=$(readlink -f "$0")
