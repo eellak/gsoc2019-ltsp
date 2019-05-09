@@ -1,11 +1,18 @@
-#!/bin/sh
 # This file is part of LTSP, https://ltsp.github.io
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Add live (overlay) support to initramfs-tools.
+# Add live (overlay) support to initramfs-tools
 
-. /scripts/ltsp-functions.sh
+main() {
+    warn "Starting $LTSP_TOOL"
+    writeable || overlay_root
+    patch_networking
+    patch_root
+    # Move ltsp to /run to make it available after pivot_root
+    mv /ltsp /run/ltsp
+    # warn "Here's a shell before pivot:\n"; /bin/sh
+}
 
 writeable() {
     chroot "$rootmnt" /usr/bin/test -w / && return 0
@@ -15,11 +22,14 @@ writeable() {
 }
 
 modprobe_overlay() {
-    grep -q overlay /proc/filesystems && return
-    modprobe overlay
-    grep -q overlay /proc/filesystems && return
-    insmod "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko"
-    grep -q overlay /proc/filesystems && return
+    grep -q overlay /proc/filesystems &&
+        return 0
+    modprobe overlay &&
+        grep -q overlay /proc/filesystems &&
+        return 0
+    insmod "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" &&
+        grep -q overlay /proc/filesystems &&
+        return 0
     panic "Couldn't modprobe overlay!"
 }
 
@@ -33,6 +43,9 @@ overlay_root() {
 }
 
 patch_networking() {
+    # TODO: this is initramfs-tools specific
+    grep -Eqw 'root=/dev/nbd.*|root=/dev/nfs' /proc/cmdline || return 0
+    . /run/net-*.conf
     # prohibit network-manager from messing with the boot interface
     printf "%s" "[keyfile]
 unmanaged-devices=interface-name:$DEVICE
@@ -63,15 +76,8 @@ echo "This is RC LOCAL!"
 # sleep 30  #  Cups does not like quick reboots and delays
 # Systemd unit "Make remote CUPS printers available locally",
 # sometimes needs 25 secs on NBD, 60 on NFS, with timeout=90
-reboot
+# reboot
 ' > "$rootmnt/etc/rc.local"
     chmod +x "$rootmnt/etc/rc.local"
 }
 
-writeable || overlay_root
-if egrep -qw 'root=/dev/nbd.*|root=/dev/nfs' /proc/cmdline; then
-    . /run/net-*.conf
-    patch_networking
-fi
-patch_root
-# log "Here's a shell before pivot:\n"; /bin/sh

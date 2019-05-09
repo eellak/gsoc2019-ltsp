@@ -26,7 +26,7 @@ main() {
 }
 
 main_ltsp_initrd() {
-    local tmp
+    local tmp script
 
     # It's simpler to copy everything into a temp dir before calling cpio
     tmp=$(mktemp -d)
@@ -38,16 +38,25 @@ main_ltsp_initrd() {
         cp -a "/etc/ltsp/initrd/." "$tmp/"
     fi
     if [ -f /etc/ltsp/ltsp-client.conf ]; then
-        "$LTSP_DIR/tools/$LTSP_TOOL/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
-            >"$tmp/ltsp/tools/ltsp-initrd-top/05-ltsp-client.sh"
+        "$LTSP_DIR/tools/ltsp-initrd/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
+            >"$tmp/ltsp/tools/ltsp/ltsp-client.sh"
     fi
     # Syntax check all the shell scripts
-    find "$tmp" -name '*.sh' -exec sh -n {} \;
+    while read -r script <&3; do
+        sh -n "$script" || die "Syntax error in initrd script"
+    done 3<<EOF
+$(find "$tmp" -name '*.sh')
+EOF
     # Create the initrd
-    find "$tmp" ! -name ltsp.img | sed "s|^$tmp/||" | \
-        cpio -D "$tmp" -oH newc --quiet | gzip > "$tmp/ltsp.img"
+    # TODO: too complicated, shows "blank line ignored", and doesn't run with busybox cpio:
+    # find "$tmp/" ! -name ltsp.img | sed "s|^$tmp/||" | \
+    #     cpio -D "$tmp" -oH newc --quiet | gzip > "$tmp/ltsp.img"
+    cd "$tmp"
+    find . ! -name ltsp.img | cpio -oH newc | gzip > "$tmp/ltsp.img"
+    cd - >/dev/null
     mkdir -p "$LTSP_TFTP/ltsp"
     mv "$tmp/ltsp.img" "$LTSP_TFTP/ltsp/"
+    rm -r "$tmp"
     echo "Generated ltsp.img:"
     ls -l "$LTSP_TFTP/ltsp/ltsp.img"
 }

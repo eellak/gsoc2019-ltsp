@@ -24,7 +24,8 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-#set img pxelinux
+set img nbd3
+set cmdline_extra vga=0x343 break!=premount init=/bin/bash
 goto start
 
 :3c:07:71:a2:02:e3
@@ -135,7 +136,7 @@ initrd http://archive.ubuntu.com/ubuntu/dists/devel/main/installer-i386/current/
 boot || goto failed
 
 :linux_via_ltsp
-kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload
+kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload ${cmdline_extra}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img
 boot || goto failed

@@ -12,9 +12,12 @@
 # Some tools run inside the initramfs, so some functions need to be compatible
 # with busybox.
 
+
 aa_main() {
-    # Always stop on unhandled errors
+    # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
+    # We use this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
+    trap "trap_cleanup" 0 HUP INT QUIT SEGV PIPE TERM
     # Allow overriding LTSP_DIR and LTSP_TOOL
     if [ -z "$LTSP_DIR" ]; then
         LTSP_DIR=$(readlink -f "$0")
@@ -24,6 +27,7 @@ aa_main() {
     source_tool "ltsp" "$@"
     # This calls 55-ltsp.sh>main_ltsp(), which will eventually run the tool
     run_main_functions "$@"
+    trap - 0 HUP INT QUIT SEGV PIPE TERM
 }
 
 # TODO: do we need this?
@@ -44,9 +48,18 @@ debug() {
     warn "LTSP_DEBUG:" "$@"
 }
 
-# Print a message to stderr and exit with an error code
+# Print a message to stderr and exit with an error code.
+# No need to pass a message if the failed command displays the error.
 die() {
-    warn "$@"
+    trap - 0 HUP INT QUIT SEGV PIPE TERM
+    if [ $# -eq 0 ]; then
+        set > /tmp/ltsp-env-$$
+        chmod -r /tmp/ltsp-env-$$
+        warn "ERROR in ${LTSP_TOOL:-LTSP}! Here's a shell to troubleshoot it:"
+        sh
+    else
+        warn "$@"
+    fi
     # If called from subshells, this just exits the subshell
     exit 1
 }
@@ -57,17 +70,47 @@ echo() {
     printf "%s\n" "$*"
 }
 
+# Check if parameter is a function; `command -v` isn't allowed by POSIX
+is_function() {
+    local fun
+
+    if [ -z "$is_function" ]; then
+        command -v is_function >/dev/null ||
+            die "Your shell doesn't support command -v"
+        is_function=1
+    fi
+    for fun in "$@"; do
+        command -v "$fun" >/dev/null || return 1
+    done
+}
+
+# TODO: do we need this here?
+# Export the kernel cmdline ltsp.* variables
+kernel_variables() {
+    local v
+
+    for v in $(cat /tmp/cmdline); do
+        test "$v" = "${v#ltsp.}" && continue
+        v=${v#ltsp.}
+        export "$(echo "$v" | awk -F= '{ OFS=FS; $1=toupper($1); print }')"
+    done
+}
+
 # Run all the main_script() functions we already sourced
 run_main_functions() {
     local script
 
     # 55-ltsp-initrd.sh should be called as: main_ltsp_initrd
-    while read -r script; do
+    # <&3 is to allow scripts to use stdin instead of using the HEREDOC
+    while read -r script <&3; do
+        is_function "main_$script" || continue
         case ",$LTSP_SKIP_SCRIPTS," in
             *",$script,"*) debug "Skipping main of script: $script" ;;
-            *) "main_$script" "$@" ;;
+            *)  debug "Running main of script: $script"
+                "main_$script" "$@"
+                ;;
         esac
-    done <<EOF
+    done 3<<EOF
 $(echo "$LTSP_SCRIPTS" | sed -e 's/.*\///' -e 's/[^[:alpha:]]*\([^.]*\).*/\1/g' -e 's/[^[:alnum:]]/_/g')
 EOF
 }
@@ -126,11 +169,10 @@ source_tool() {
     LTSP_SCRIPTS=$(run_parts_list "$LTSP_DIR/tools/$tool" \
     "/run/ltsp/tools/$tool" \
     "/etc/ltsp/tools/$tool")
-    while read -r script; do
+    while read -r script <&3; do
         debug "Sourcing: $script"
-        # shellcheck disable=SC1090
         . "$script"
-    done <<EOF
+    done 3<<EOF
 $LTSP_SCRIPTS
 EOF
 }
@@ -143,10 +185,17 @@ tool_version() {
     echo "$LTSP_TOOL $LTSP_VERSION"
 }
 
+trap_cleanup() {
+    # Stop trapping
+    trap - 0 HUP INT QUIT SEGV PIPE TERM
+    die
+}
+
 # Print a message to stderr
 warn() {
     echo "$@" >&2
 }
+
 
 # Set LTSP_SKIP_SCRIPTS=ltsp to source without executing any tools
 aa_main "$@"

@@ -23,11 +23,9 @@ LTSP_TFTP="${LTSP_TFTP:-/var/lib/tftpboot}"
 
 # If the user provided .conf files, source them now
 if [ -f "/etc/ltsp/ltsp.conf" ]; then
-    # shellcheck disable=SC1090
     . "/etc/ltsp/ltsp.conf"
 fi
 if [ -f "/etc/ltsp/$LTSP_TOOL.conf" ]; then
-    # shellcheck disable=SC1090
     . "/etc/ltsp/$LTSP_TOOL.conf"
 fi
 

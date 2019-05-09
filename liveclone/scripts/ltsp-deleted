@@ -1,3 +1,28 @@
+. /scripts/ltsp-functions.sh
+
+log "This is conf/conf.d/ltsp.conf sourced by $0. Injecting...\n"
+
+for d in /scripts/*/ORDER; do
+    continue  # TODO
+    cat >>$d <<EOF
+printf "   [LTSP]: This is $d sourced by $0.\n"
+EOF
+done
+
+# Hook our scripts
+for script in /scripts/*/ltsp-*; do
+    entry=$(printf "%s %s\n" "$script" '"$@"
+[ -e /conf/param.conf ] && . /conf/param.conf')
+    if [ "$script" != "${script#/scripts/init-bottom/}" ]; then
+        # ltsp-bottom needs to be first in Ubuntu, before /root/dev is mounted
+        order=$(cat "${script%/*}/ORDER")
+        printf "%s\n%s\n" "$entry" "$order" >"${script%/*}/ORDER"
+    else
+        printf "%s\n" "$entry" >>"${script%/*}/ORDER"
+    fi
+done
+
+
 
 # Install wrappers
 . /scripts/masd-configure-networking

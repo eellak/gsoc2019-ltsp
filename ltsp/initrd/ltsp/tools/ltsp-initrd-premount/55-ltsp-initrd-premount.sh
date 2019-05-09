@@ -1,9 +1,21 @@
-#!/bin/sh
 # This file is part of LTSP, https://ltsp.github.io
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Work around various initramfs-tools issues.
+# Work around various initramfs-tools issues
+
+main() {
+    warn "Starting $LTSP_TOOL"
+    case "$ROOT" in
+        /dev/nbd*)
+            patch_nbd
+            ;;
+        /dev/etherd/*)
+            . /scripts/functions
+            configure_aoe
+            ;;
+    esac
+}
 
 patch_nbd() {
     # Work around https://github.com/NetworkBlockDevice/nbd/issues/87
@@ -50,14 +62,3 @@ configure_aoe() {
     modprobe aoe
     udevadm settle || true
 }
-
-case "$ROOT" in
-    /dev/nbd*)
-        patch_nbd
-        ;;
-    /dev/etherd/*)
-        . /scripts/functions
-        configure_aoe
-        ;;
-esac
-
