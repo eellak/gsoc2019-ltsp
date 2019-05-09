@@ -48,15 +48,24 @@ debug() {
     warn "LTSP_DEBUG:" "$@"
 }
 
+debug_shell() {
+    set > /tmp/ltsp-env-$$
+    chmod o-r /tmp/ltsp-env-$$
+    warn "Dropping to a shell for troubleshooting, type exit to continue:"
+    if is_command bash; then
+        bash
+    else
+        sh
+    fi
+}
+
 # Print a message to stderr and exit with an error code.
 # No need to pass a message if the failed command displays the error.
 die() {
     trap - 0 HUP INT QUIT SEGV PIPE TERM
     if [ $# -eq 0 ]; then
-        set > /tmp/ltsp-env-$$
-        chmod -r /tmp/ltsp-env-$$
-        warn "ERROR in ${LTSP_TOOL:-LTSP}! Here's a shell to troubleshoot it:"
-        sh
+        warn "ERROR in ${LTSP_TOOL:-LTSP}!"
+        debug_shell
     else
         warn "$@"
     fi
@@ -70,14 +79,14 @@ echo() {
     printf "%s\n" "$*"
 }
 
-# Check if parameter is a function; `command -v` isn't allowed by POSIX
-is_function() {
+# Check if parameter is a command; `command -v` isn't allowed by POSIX
+is_command() {
     local fun
 
-    if [ -z "$is_function" ]; then
-        command -v is_function >/dev/null ||
+    if [ -z "$is_command" ]; then
+        command -v is_command >/dev/null ||
             die "Your shell doesn't support command -v"
-        is_function=1
+        is_command=1
     fi
     for fun in "$@"; do
         command -v "$fun" >/dev/null || return 1
@@ -103,7 +112,7 @@ run_main_functions() {
     # 55-ltsp-initrd.sh should be called as: main_ltsp_initrd
     # <&3 is to allow scripts to use stdin instead of using the HEREDOC
     while read -r script <&3; do
-        is_function "main_$script" || continue
+        is_command "main_$script" || continue
         case ",$LTSP_SKIP_SCRIPTS," in
             *",$script,"*) debug "Skipping main of script: $script" ;;
             *)  debug "Running main of script: $script"

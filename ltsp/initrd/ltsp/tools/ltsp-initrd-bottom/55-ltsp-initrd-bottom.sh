@@ -6,12 +6,62 @@
 
 main() {
     warn "Starting $LTSP_TOOL"
+    debug_shell
+    import_netinfo
     writeable || overlay_root
     patch_networking
     patch_root
     # Move ltsp to /run to make it available after pivot_root
     mv /ltsp /run/ltsp
     # warn "Here's a shell before pivot:\n"; /bin/sh
+}
+
+# Get initramfs networking information into our own variables
+import_netinfo() {
+    # TODO: this is initramfs-tools specific
+    # TODO: I need $DEVICE for network-manager etc
+    local v script
+
+    # Keep everything in space-separated lists
+    if [ -z "$LTSP_MACS" ]; then
+        while read -r iface mac <&3; do
+            LTSP_MACS="$LTSP_MACS $mac"
+        done 3<<EOF
+$(ip -o link show |
+    sed -n 's|[^ ]* *\([^:]*\).*link/ether *\([^ ]*\) .*|\1 \2|p')
+EOF
+        # Remove initial space
+        LTSP_MACS=${LTSP_MACS# }
+    fi
+
+    if [ -z "$LTSP_IPS" ]; then
+        while read -r ip <&3; do
+            case "$ip" in
+                127.0.0.1|::1) ;;
+                *) LTSP_IPS="$LTSP_IPS $ip" ;;
+            esac
+        done 3<<EOF
+$(ip -o address show |
+    sed -n 's|[^ ]* [^ ]* *inet[^ ]* * \([^ /]*\).*|\1|p')
+EOF
+        LTSP_IPS=${LTSP_IPS# }
+    fi
+
+    if [ -z "$LTSP_SERVER" ] && [ -n "$LTSP_IPS" ]; then
+        # Now we want to detect the LTSP server.
+        # ROOTSERVER may be invalid in case of proxyDHCP.
+        # `ps -fC nbd-client` doesn't work as it's just a server socket.
+        # It may be available in /proc/cmdline, but it's complex to check
+        # for all the variations of ip=, root=, netroot=, nbdroot= etc.
+        # So if we have ONE TCP connection, assume it's the server.
+        LTSP_SERVER=$(netstat -tun | sed -n 's|^tcp[^ ]* *[^ ]* *[^ ]* *[^ ]* *\([^ ]*\):[0-9]* .*|\1|p')
+        if [ "$(expr match "$LTSP_SERVER" '[0-9a-f:.]*')" = "${#LTSP_SERVER}" ]; then
+            # We need $LTSP_IFACE for network-manager blacklisting
+            LTSP_IFACE=$(ip -o route get $LTSP_SERVER | sed -n 's|.* *dev *\([^ ]*\) .*|\1|p')
+        else
+            unset LTSP_SERVER
+        fi
+    fi
 }
 
 writeable() {
@@ -30,7 +80,7 @@ modprobe_overlay() {
     insmod "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" &&
         grep -q overlay /proc/filesystems &&
         return 0
-    panic "Couldn't modprobe overlay!"
+    debug_shell "Couldn't modprobe overlay!"
 }
 
 overlay_root() {

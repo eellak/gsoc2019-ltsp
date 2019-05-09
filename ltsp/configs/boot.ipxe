@@ -7,7 +7,7 @@
 # iPXE configuration file.
 ## Search for and read all the important lines that start with ##
 
-set menu-timeout 3000
+set menu-timeout 1000
 # Set the menu default based on arch, or to root-path if it's not empty
 cpuid --ext 29 && set img x86_64 || set img x86_32
 isset ${root-path} && set img ${root-path} ||

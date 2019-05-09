@@ -24,7 +24,7 @@ call() {
 # ./ini2sh.awk /var/lib/tftpboot/ltsp/i386/lts.conf > /tmp/lts.sh && . /tmp/lts.sh
 
 # Or just eval it
-eval "$(./ini2sh.awk lts.conf)"
+eval "$(./ini2sh.awk ltsp-initrd-test.conf)"
 
 # Calculate vars
 MAC="00:14:85:F3:25:F1"
