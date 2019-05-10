@@ -14,3 +14,6 @@ mv /usr/sbin/dhclient-script /usr/sbin/dhclient-script-real
 ln -s dhclient-script-ltsp /usr/sbin/dhclient-script
 # Avoid delays - TODO: remove
 mv /usr/sbin/rdsosreport /usr/sbin/rdsosreport-real
+ls -l /proc/self/fd > /tmp/out
+echo "HERE IS A SHELL"
+sh

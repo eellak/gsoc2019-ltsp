@@ -15,7 +15,6 @@
 
 main() {
     warn "Starting $LTSP_TOOL"
-    debug_shell
     case "$ROOT" in
         /dev/nbd*)
             patch_nbd

@@ -49,8 +49,7 @@ debug() {
 }
 
 debug_shell() {
-    set > /tmp/ltsp-env-$$
-    chmod o-r /tmp/ltsp-env-$$
+    ( umask 0077; set > /tmp/ltsp-env-$$ )
     warn "Dropping to a shell for troubleshooting, type exit to continue:"
     if is_command bash; then
         bash
@@ -123,6 +122,14 @@ run_main_functions() {
 $(echo "$LTSP_SCRIPTS" | sed -e 's/.*\///' -e 's/[^[:alpha:]]*\([^.]*\).*/\1/g' -e 's/[^[:alnum:]]/_/g')
 EOF
 }
+
+# TODO: dracut doesn't have find, but it can be crudely simulated with bash
+# Currently simulating only: find $DIR -type f
+if ! is_command find; then
+find() {
+    bash -c 'shopt -s globstar; for f in '"$1"'/**; do if [ "${f%.sh}" != "$f" ]; then echo "$f"; fi; done | sort'
+}
+fi
 
 # Input: two optional `find` parameters and an ordered list of directories.
 # Output: a list of files, including their paths, ordered by their basenames.

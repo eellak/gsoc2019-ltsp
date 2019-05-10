@@ -25,7 +25,7 @@ goto start
 :52:54:00:25:e3:37
 set hostname fatso
 set img nbd3
-set cmdline_extra vga=0x343 break!=premount init=/bin/bash
+set cmdline_extra vga=0x343 break!=premount
 goto start
 
 :3c:07:71:a2:02:e3
@@ -104,9 +104,10 @@ goto linux_via_ltsp
 # Best syntax: root=dhcp netroot=nbd:${srv}:/opt/ltsp/${img}
 # But root=dhcp is broken: https://github.com/dracutdevs/dracut/issues/540
 # rd.break={cmdline|pre-udev|pre-trigger|initqueue|pre-mount|mount|pre-pivot}
-# rd.debug rdinit=/bin/sh rd.skipfsck rootfallback=
+# rd.debug rdinit=/usr/bin/sh rd.skipfsck rootfallback=
 set cmdline root=nfs:${srv}:/opt/ltsp/${img}
 set cmdline root=nbd:${srv}:/opt/ltsp/${img}
+set cmdline rd.break=pre-mount
 goto linux_via_ltsp
 
 :livecd  # https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1755863

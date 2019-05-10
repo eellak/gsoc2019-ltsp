@@ -19,7 +19,17 @@ Coding will start from a clean tree and some bits of LTSP code will be imported 
 The implementation details follow, organized by [GSoC timeline](https://developers.google.com/open-source/gsoc/timeline).
 
 ### Student application work (Mar 25 - Apr 09)
-(Whatever is requested by the project mentors)
+As part of the application process, I investigated netbooting LTSP clients under UEFI. I examined the following applications:
+ - shim.efi: for secure boot
+ - ipxe.efi, snponly.efi: boot loader mostly used for netbooting
+ - grub.efi: boot loader mostly used in local installations
+ - syslinux.efi: boot loader mostly used in live CDs
+
+I discovered and reported the following related bugs:
+ - shim upstream: [Shim uses wrong TFTP server IP in proxyDHCP mode](https://github.com/rhboot/shim/issues/165)
+ - shim in launchpad: [Shim uses wrong TFTP server IP in proxyDHCP mode](https://bugs.launchpad.net/ubuntu/+source/shim/+bug/1813541)
+ - grub upstream: [Wrong TFTP server when booted from proxyDHCP](https://savannah.gnu.org/bugs/index.php?55636)
+ - ipxe in launchpad: [Make grub-ipxe work under UEFI](https://bugs.launchpad.net/ubuntu/+source/ipxe/+bug/1811496)
 
 ### Community Bonding Period (May 6 - May 26)
 While the LTSP codebase has been actively maintained, the ltsp.org website hasn't seen any updates since 2013. The server itself is an Ubuntu 10.04 Virtual Machine, which was EOLed in April 2015 and suffers from security issues and [excessive spam](http://wiki.ltsp.org/wiki/Special:NewPages).

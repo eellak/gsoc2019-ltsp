@@ -6,20 +6,17 @@
 
 main() {
     warn "Starting $LTSP_TOOL"
-    debug_shell
     import_netinfo
-    writeable || overlay_root
-    patch_networking
-    patch_root
+    # writeable || overlay_root
+    # patch_networking
+    # patch_root
+    set_init
     # Move ltsp to /run to make it available after pivot_root
     mv /ltsp /run/ltsp
-    # warn "Here's a shell before pivot:\n"; /bin/sh
 }
 
 # Get initramfs networking information into our own variables
 import_netinfo() {
-    # TODO: this is initramfs-tools specific
-    # TODO: I need $DEVICE for network-manager etc
     local v script
 
     # Keep everything in space-separated lists
@@ -50,7 +47,7 @@ EOF
     if [ -z "$LTSP_SERVER" ] && [ -n "$LTSP_IPS" ]; then
         # Now we want to detect the LTSP server.
         # ROOTSERVER may be invalid in case of proxyDHCP.
-        # `ps -fC nbd-client` doesn't work as it's just a server socket.
+        # `ps -fC nbd-client` doesn't work as it's just a kernel thread.
         # It may be available in /proc/cmdline, but it's complex to check
         # for all the variations of ip=, root=, netroot=, nbdroot= etc.
         # So if we have ONE TCP connection, assume it's the server.
@@ -131,3 +128,11 @@ echo "This is RC LOCAL!"
     chmod +x "$rootmnt/etc/rc.local"
 }
 
+set_init() {
+    # We can't use /run as it's mounted noexec. Mount --bind over the real init!
+    real_init=$(readlink -f "$rootmnt/sbin/init" || readlink "$rootmnt/sbin/init")
+    cp -a /ltsp/init /dev/init-ltsp && mount --bind /dev/init-ltsp "$rootmnt/$real_init"
+    # mount --bind /ltsp/init "$rootmnt/$real_init"
+    # ΕΔΩ - OK this works; but I can't unmount it as it's busy;
+    # but I can `mount --move` it over /dev/init-ltsp; so all fine!
+}
