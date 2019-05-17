@@ -1,37 +1,15 @@
 #!/bin/sh
+# This file is part of LTSP, https://ltsp.github.io
+# Copyright 2019 the LTSP team, see AUTHORS
+# SPDX-License-Identifier: GPL-3.0-or-later
 
-# If the root file system is read-only, create a tmpfs overlay over it.
-# Tested over NBD and NFSv3, but it currently has issues over NFSv4:
-# https://bugzilla.kernel.org/show_bug.cgi?id=199013
-overlayit() {
-    local base
-
-    # Bail out if we're not needed or if there's no overlay support.
-    test -w / && return 0
-    grep -qs overlay /proc/filesystems || modprobe overlay
-    grep -qs overlay /proc/filesystems || return 0
-    echo "The root file system isn't writeable, activating overlay.">&2
-
-    # We want an existing mount point for the tmpfs outside of /run,
-    # otherwise switch_root can't move the /run mount as it's in use.
-    # The tmpfs mount and contents will be hidden anyway after switch_root.
-    for base in /mnt /media /cdrom /var/lib/ltsp-client-setup /root; do
-        mountpoint -q "$base" || break
-    done
-
-    mkdir -p "$base"
-    mount -t tmpfs tmpfs "$base"
-    mkdir -p $base/work $base/up $base/merged
-    mount -t overlay -o "lowerdir=/,workdir=$base/work,upperdir=$base/up" overlay "$base/merged"
-
-    bash
-    exec switch_root $base$d/merged /bin/bash  # NOPE: -ltsp "$@"
-}
+# LTSP_PHASE=init
+# Override /sbin/init to run some LTSP code, then restore the real init.
+# I think it can't be just a symlink to ltsp.sh like the other tools,
+# because of initramfs init validation / broken symlink at that point.
 
 echo "This is init-ltsp $*, type exit to continue booting"
-# Heh, somehow switch_root gets rid of our mount!
-#touch /dev/init2
-#mount --move /usr/lib/systemd/systemd /dev/init2
-overlayit
-# We should never reach this
+rm /sbin/init
+mv /sbin/init.real /sbin/init
 bash
+exec /sbin/init

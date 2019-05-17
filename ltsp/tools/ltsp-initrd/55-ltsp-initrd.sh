@@ -32,6 +32,7 @@ main_ltsp_initrd() {
     tmp=$(mktemp -d)
     cp -a "$LTSP_DIR/initrd/." "$tmp/"
     cp -a "$LTSP_DIR/ltsp.sh" "$tmp/ltsp/"
+    mkdir -p "$tmp/ltsp/tools/"
     cp -a "$LTSP_DIR/tools/ltsp" "$tmp/ltsp/tools/"
     # Users can override things from /etc/ltsp
     if [ -d /etc/ltsp/initrd ]; then

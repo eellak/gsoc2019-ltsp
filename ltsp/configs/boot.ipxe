@@ -24,8 +24,7 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-set img nbd3
-set cmdline_extra vga=0x343 break!=premount
+set img bionic-mate-sch64
 goto start
 
 :3c:07:71:a2:02:e3
@@ -38,35 +37,70 @@ goto start
 # goto menu_end
 ## To hide only some menu items, comment their lines here:
 menu iPXE boot menu - ${hostname}:${srv}:${root-path} || goto ${img}
-item --gap            Operating systems:
-item --key 1 x86_64   Ubuntu Mate 18.04 LTSP (x86_64)
-item --key 2 x86_32   Ubuntu Mate 18.04 LTSP (x86_32)
-item --key 3 nbd3     Some VirtualBox VM (nbd3)
-item --key 4 nbd4     Some VirtualBox VM (nbd4)
-item --key 5 livecd   Some Ubuntu Live CD
-item --key 6 netinst  Ubuntu network installer
+item --gap              Operating systems:
+item bionic-mate-sch32  bionic-mate-sch32
+item bionic-mate-sch64  bionic-mate-sch64
+item bionic-minimal     bionic-minimal
+item bionic-ubuntu      bionic-ubuntu
+item buster-gnome       buster-gnome
+item fedora30           fedora30
+item gentoo             gentoo
+item jessie-mate        jessie-mate
+item stretch-mate-sch   stretch-mate-sch
+item tara-cinnamon      tara-cinnamon
+item xenial-mate-sch    xenial-mate-sch
+item --key 1 x86_32     Ubuntu Mate 18.04 LTSP (x86_32)
+item --key 2 x86_64     Ubuntu Mate 18.04 LTSP (x86_64)
+item --key 3 livecd     Some Ubuntu Live CD
+item --key 4 netinst    Ubuntu network installer
 item
-item --gap            Advanced options:
-item --key m memtest  Memory test
-item --key 9 W98SeEl  Windows 98 boot disk with Norton Ghost
-item --key n netboot  Chain to boot.netboot.xyz
-item --key p pxelinux Chain to PXELinux
-item --key c config   Enter iPXE configuration
-item --key s shell    Drop to iPXE shell
-item --key d disk     Boot from the first local disk
+item --gap              Advanced options:
+item --key m memtest    Memory test
+item --key 9 W98SeEl    Windows 98 boot disk with Norton Ghost
+item --key n netboot    Chain to boot.netboot.xyz
+item --key p pxelinux   Chain to PXELinux
+item --key c config     Enter iPXE configuration
+item --key s shell      Drop to iPXE shell
+item --key d disk       Boot from the first local disk
 item
-item --key x exit     Exit iPXE and continue BIOS boot
+item --key x exit       Exit iPXE and continue BIOS boot
 choose --timeout ${menu-timeout} --default ${img} img || goto cancel
 :menu_end
 
 ## We set the default Linux cmdline here, right after ${img} was selected:
-set cmdline root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} init=/sbin/init-ltsp BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload ${cmdline_extra}
 # Read the wiki for appropriate cmdlines for NFS, AoE, dracut etc.
+set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ltsploap=buster-gnome.img
 goto ${img}
+
+:bionic-mate-sch32
+:bionic-mate-sch64
+:bionic-minimal
+:bionic-ubuntu
+:buster-gnome
+:fedora30
+:gentoo
+:jessie-mate
+:stretch-mate-sch
+:tara-cinnamon
+:xenial-mate-sch
+kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload
+initrd /ltsp/${img}/initrd.img
+initrd /ltsp/ltsp.img
+boot || goto failed
+
+:x86_32
+set img bionic-mate-sch32
+iseq ${platform} pcbios && goto linux_via_ipxe || goto linux_via_grub
+
+:x86_64
+set img bionic-mate-sch64
+goto linux_via_ipxe
 
 :linux_via_ipxe
 # This code covers all Linux images and architectures, except "linux_via_grub".
 # In EFI mode, iPXE requires initrds to be specified in the cmdline.
+set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
+set cmdline ${cmdline_extra} root=/dev/nfs nfsroot=${srv}:/opt/ltsp/images ltsploop=/${img}.img BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd --name ltsp.img /ltsp/ltsp-fix-nbd.img
@@ -77,38 +111,13 @@ boot || goto failed
 # But grub fails with proxyDHCP: https://savannah.gnu.org/bugs/index.php?55636
 # Using both of them works fine!
 # To simplify grub.cfg, we pass root-path=${cmdline} and filename=${initrd}
+set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
 set net0/dhcp-server ${srv}
 set net0/next-server ${srv}
 set net0/root-path /ltsp/${img}/vmlinuz ${cmdline}
 set net0/filename /ltsp/${img}/initrd.img /ltsp/ltsp-fix-nbd.img
 kernel /grub/grubnetx64.efi.signed
 boot || goto failed
-
-:x86_64
-goto linux_via_ipxe
-
-:x86_32
-iseq ${platform} pcbios && goto linux_via_ipxe || goto linux_via_grub
-
-:nbd3  # Debian-based
-# AoE server: vblade -r 0 0 enp2s0 buster-gnome/buster-gnome-flat.vmdk
-set cmdline root=/dev/etherd/e0.0p1 rootpath=${srv}:/opt/ltsp/${img}
-# NFS exports: /opt/ltsp      192.168.67.*(ro,async,no_root_squash,no_subtree_check,crossmnt)
-set cmdline root=/dev/nfs nfsroot=${srv}:/opt/ltsp/${img}
-set cmdline root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img}
-# systemd.unit=multi-user.target init=/bin/bash rdinit=/bin/sh
-goto linux_via_ltsp
-
-:nbd4  # Fedora-based
-# nbd:srv:port/exportname[:fstype[:rootflags[:nbdopts]]]
-# Best syntax: root=dhcp netroot=nbd:${srv}:/opt/ltsp/${img}
-# But root=dhcp is broken: https://github.com/dracutdevs/dracut/issues/540
-# rd.break={cmdline|pre-udev|pre-trigger|initqueue|pre-mount|mount|pre-pivot}
-# rd.debug rdinit=/usr/bin/sh rd.skipfsck rootfallback=
-set cmdline root=nfs:${srv}:/opt/ltsp/${img}
-set cmdline root=nbd:${srv}:/opt/ltsp/${img}
-set cmdline rd.break=pre-mount
-goto linux_via_ltsp
 
 :livecd  # https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1755863
 initrd /images/cdrom/preseed/ubuntu.seed && set seed ubuntu && goto livecd_seed ||
@@ -134,12 +143,6 @@ boot || goto failed
 :netinst  # http://archive.ubuntu.com/ubuntu/dists/devel/main/installer-i386/current/images/netboot/ubuntu-installer/i386/boot-screens/txt.cfg
 kernel http://archive.ubuntu.com/ubuntu/dists/devel/main/installer-i386/current/images/netboot/ubuntu-installer/i386/linux initrd=initrd.gz
 initrd http://archive.ubuntu.com/ubuntu/dists/devel/main/installer-i386/current/images/netboot/ubuntu-installer/i386/initrd.gz
-boot || goto failed
-
-:linux_via_ltsp
-kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload ${cmdline_extra}
-initrd /ltsp/${img}/initrd.img
-initrd /ltsp/ltsp.img
 boot || goto failed
 
 :memtest

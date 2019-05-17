@@ -2,17 +2,17 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Add live (overlay) support to initramfs-tools
+# LTSP_PHASE=init
+# Override /sbin/init to run some LTSP code, then restore the real init.
+# I think it can't be just a symlink to ltsp.sh like the other tools,
+# because of initramfs init validation / broken symlink at that point.
 
 main() {
-    warn "Starting $LTSP_TOOL"
-    import_netinfo
-    # writeable || overlay_root
-    # patch_networking
-    # patch_root
-    set_init
-    # Move ltsp to /run to make it available after pivot_root
-    mv /ltsp /run/ltsp
+    run_main_functions "$@"
+}
+
+main_init() {
+    debug_shell
 }
 
 # Get initramfs networking information into our own variables
@@ -61,34 +61,6 @@ EOF
     fi
 }
 
-writeable() {
-    chroot "$rootmnt" /usr/bin/test -w / && return 0
-    mount -o remount,rw "$rootmnt"
-    chroot "$rootmnt" /usr/bin/test -w / && return 0
-    return 1
-}
-
-modprobe_overlay() {
-    grep -q overlay /proc/filesystems &&
-        return 0
-    modprobe overlay &&
-        grep -q overlay /proc/filesystems &&
-        return 0
-    insmod "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" &&
-        grep -q overlay /proc/filesystems &&
-        return 0
-    debug_shell "Couldn't modprobe overlay!"
-}
-
-overlay_root() {
-    modprobe_overlay
-    mkdir -p /run/initramfs/rofs /run/initramfs/cow
-    mount -o move "$rootmnt" /run/initramfs/rofs
-    mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/cow
-    mkdir -p /run/initramfs/cow/up /run/initramfs/cow/work
-    mount -t overlay -o upperdir=/run/initramfs/cow/up,lowerdir=/run/initramfs/rofs,workdir=/run/initramfs/cow/work overlay "$rootmnt"
-}
-
 patch_networking() {
     # TODO: this is initramfs-tools specific
     grep -Eqw 'root=/dev/nbd.*|root=/dev/nfs' /proc/cmdline || return 0
@@ -126,13 +98,4 @@ echo "This is RC LOCAL!"
 # reboot
 ' > "$rootmnt/etc/rc.local"
     chmod +x "$rootmnt/etc/rc.local"
-}
-
-set_init() {
-    # We can't use /run as it's mounted noexec. Mount --bind over the real init!
-    real_init=$(readlink -f "$rootmnt/sbin/init" || readlink "$rootmnt/sbin/init")
-    cp -a /ltsp/init /dev/init-ltsp && mount --bind /dev/init-ltsp "$rootmnt/$real_init"
-    # mount --bind /ltsp/init "$rootmnt/$real_init"
-    # ΕΔΩ - OK this works; but I can't unmount it as it's busy;
-    # but I can `mount --move` it over /dev/init-ltsp; so all fine!
 }

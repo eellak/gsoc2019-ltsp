@@ -18,8 +18,8 @@
 
 # Distributions should replace "1.0" below at build time using `sed`
 LTSP_VERSION="1.0"
-LTSP_BASE="${LTSP_BASE:-/opt/ltsp}"
-LTSP_TFTP="${LTSP_TFTP:-/var/lib/tftpboot}"
+LTSP_BASE="${LTSP_BASE:-/srv/ltsp}"
+LTSP_TFTP="${LTSP_TFTP:-/srv/ltsp}"
 
 # If the user provided .conf files, source them now
 if [ -f "/etc/ltsp/ltsp.conf" ]; then

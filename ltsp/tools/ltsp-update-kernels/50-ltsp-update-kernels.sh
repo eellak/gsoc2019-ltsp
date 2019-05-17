@@ -108,14 +108,14 @@ main() {
         imgn=${imgn%.*}
         imgn=${imgn%-flat}
         devn=${dev##*/}
-        mkdir -p "/var/lib/tftpboot/ltsp/$imgn"
+        mkdir -p "/srv/ltsp/ltsp/$imgn"
         read vmlinuz initrd <<EOF
 $(search_kernel /mnt 3>/dev/null | head -n 1)
 EOF
         if [ -n "$vmlinuz" ] && [ -n "$initrd" ]; then
             # ls -l --color "$vmlinuz" "$initrd"
-            install -v -m 644 "$vmlinuz" "/var/lib/tftpboot/ltsp/$imgn/vmlinuz"
-            install -v -m 644 "$initrd" "/var/lib/tftpboot/ltsp/$imgn/initrd.img"
+            install -v -m 644 "$vmlinuz" "/srv/ltsp/ltsp/$imgn/vmlinuz"
+            install -v -m 644 "$initrd" "/srv/ltsp/ltsp/$imgn/initrd.img"
         fi
         # read -p "Press enter to unmount everything: " dummy
         umount /mnt

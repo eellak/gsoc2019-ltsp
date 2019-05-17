@@ -50,7 +50,7 @@ debug() {
 
 debug_shell() {
     ( umask 0077; set > /tmp/ltsp-env-$$ )
-    warn "Dropping to a shell for troubleshooting, type exit to continue:"
+    warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
     if is_command bash; then
         bash
     else
@@ -101,6 +101,31 @@ kernel_variables() {
         test "$v" = "${v#ltsp.}" && continue
         v=${v#ltsp.}
         export "$(echo "$v" | awk -F= '{ OFS=FS; $1=toupper($1); print }')"
+    done
+}
+
+# Run a command and fall to a debug shell if it returns false
+must() {
+    local want got
+
+    if [ "$1" = "!" ]; then
+        want=1
+        shift
+    else
+        want=0
+    fi
+    while true; do
+        if "$@"; then
+            got=0
+        else
+            got=1
+        fi
+        if [ "$want" = "$got" ]; then
+            break
+        else
+            debug_shell "LTSP command failed: $*
+Type 'exit' to retry, or 'exit 1' to terminate" || die
+        fi
     done
 }
 
@@ -214,4 +239,5 @@ warn() {
 
 
 # Set LTSP_SKIP_SCRIPTS=ltsp to source without executing any tools
-aa_main "$@"
+# Set LTSP_MAIN=true to source only this file
+"${LTSP_MAIN:-aa_main}" "$@"
