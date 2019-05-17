@@ -39,6 +39,11 @@ boolean_is_true() {
     esac
 }
 
+# True if can chroot into this dir
+can_chroot() {
+    chroot "$1" true 2>/dev/null || return 1
+}
+
 # Print a message to stderr if $LTSP_DEBUG is appropriately set
 debug() {
     case ",$LTSP_DEBUG," in
@@ -51,6 +56,7 @@ debug() {
 debug_shell() {
     ( umask 0077; set > /tmp/ltsp-env-$$ )
     warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
+    # TODO:
     if is_command bash; then
         bash
     else
@@ -92,19 +98,87 @@ is_command() {
     done
 }
 
-# TODO: do we need this here?
 # Export the kernel cmdline ltsp.* variables
 kernel_variables() {
     local v
 
-    for v in $(cat /tmp/cmdline); do
+    for v in $(cat /proc/cmdline); do
         test "$v" = "${v#ltsp.}" && continue
         v=${v#ltsp.}
         export "$(echo "$v" | awk -F= '{ OFS=FS; $1=toupper($1); print }')"
     done
 }
 
-# Run a command and fall to a debug shell if it returns false
+# Autodetect a source directory type and mount it to a target dir
+mount_dir() {
+    local src dst loopfile
+
+    src="$1"
+    dst="$2"
+    must test -d "$src"
+    must test -d "$dst"
+    if can_chroot "$src"; then
+        test "$src" = "$dst" && return 0
+        die "TODO: if src!=dst, we're called outside of initramfs,
+and we need to recursively mount subdirs etc"
+    fi
+    # Here it's a raw partition/disk file etc so it needs the loop module.
+    # In Ubuntu loop is built-in and /proc/cmdline needs: loop.max_part=9
+    must modprobe loop max_part=9
+    # TODO: use partprobe if called outside of initramfs
+    unset success
+    # Try the files that are larger than initrds, e.g. 100M+
+    while read -r loopfile <&3; do
+        warn "Trying $loopfile"
+        if mount_file "$loopfile" "$dst"; then
+            can_chroot "$dst" && return 0
+        else
+            must umount "$dst"
+        fi
+    done 3<<EOF
+$(find "$src" -type f -maxdepth 1 -size +100000k)
+EOF
+    return 1
+}
+
+# Try to loop mount a raw partition/disk file in a target dir
+mount_file() {
+    local src dst TYPE PTTYPE
+
+    src="$1"
+    dst="$2"
+    test -e "$src" || return 1
+    must test -d "$dst"
+    unset TYPE PTTYPE
+    # Use a subshell to avoid polluting the real environment.
+    # Reminder: `return` exits from the subshell, not the function.
+    (
+        vars=$(blkid -o export "$src" 2>/dev/null) || return 1
+        test -n "$vars" || return 1
+        eval "$vars"
+        if [ -n "$TYPE" ]; then  # A partition
+            if mount -t "$TYPE" -o ro,noload "$src" "$dst" 2>/dev/null; then
+                if [ -d "$dst/proc" ]; then
+                    return 0
+                else
+                    warn "No /proc found in $src"
+                    must umount "$dst"
+                fi
+            fi
+        elif [ -n "$PTTYPE" ]; then  # A partition table
+            loopdev=$(must losetup -f)
+            must losetup "$loopdev" "$src"
+            for looppart in "$loopdev"p*; do
+                warn "Trying to loop-mount $looppart"
+                mount_file "$looppart" "$dst" && return 0
+            done
+            must losetup -d "$loopdev"
+        fi
+        return 1
+    ) || return 1
+}
+
+# Run a command and fall to a debug shell if it returns false.
 must() {
     local want got
 
@@ -124,7 +198,7 @@ must() {
             break
         else
             debug_shell "LTSP command failed: $*
-Type 'exit' to retry, or 'exit 1' to terminate" || die
+Type 'exit 0' to retry, or 'exit 1' to terminate" || die
         fi
     done
 }

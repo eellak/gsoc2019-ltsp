@@ -24,7 +24,7 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-set img bionic-mate-sch64
+set img buster-gnome
 goto start
 
 :3c:07:71:a2:02:e3
@@ -69,7 +69,7 @@ choose --timeout ${menu-timeout} --default ${img} img || goto cancel
 
 ## We set the default Linux cmdline here, right after ${img} was selected:
 # Read the wiki for appropriate cmdlines for NFS, AoE, dracut etc.
-set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ltsploap=buster-gnome.img
+set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 break!=bottom
 goto ${img}
 
 :bionic-mate-sch32
