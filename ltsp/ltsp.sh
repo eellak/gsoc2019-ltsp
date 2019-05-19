@@ -56,7 +56,8 @@ debug() {
 debug_shell() {
     ( umask 0077; set > /tmp/ltsp-env-$$ )
     warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
-    # TODO:
+    # TODO: make this "repeat y/n" for security reasons, unless some
+    # cmdline parameter is set. Also, check if stdin is valid (| pipe).
     if is_command bash; then
         bash
     else
@@ -102,6 +103,7 @@ is_command() {
 kernel_variables() {
     local v
 
+    # TODO: imitate the kernel cmdline parsing in awk (spaces and all)
     for v in $(cat /proc/cmdline); do
         test "$v" = "${v#ltsp.}" && continue
         v=${v#ltsp.}
@@ -115,8 +117,8 @@ mount_dir() {
 
     src="$1"
     dst="$2"
-    must test -d "$src"
-    must test -d "$dst"
+    rb test -d "$src"
+    rb test -d "$dst"
     if can_chroot "$src"; then
         test "$src" = "$dst" && return 0
         die "TODO: if src!=dst, we're called outside of initramfs,
@@ -124,16 +126,15 @@ and we need to recursively mount subdirs etc"
     fi
     # Here it's a raw partition/disk file etc so it needs the loop module.
     # In Ubuntu loop is built-in and /proc/cmdline needs: loop.max_part=9
-    must modprobe loop max_part=9
+    rb modprobe loop max_part=9
     # TODO: use partprobe if called outside of initramfs
-    unset success
     # Try the files that are larger than initrds, e.g. 100M+
     while read -r loopfile <&3; do
         warn "Trying $loopfile"
         if mount_file "$loopfile" "$dst"; then
             can_chroot "$dst" && return 0
         else
-            must umount "$dst"
+            rb umount "$dst"
         fi
     done 3<<EOF
 $(find "$src" -type f -maxdepth 1 -size +100000k)
@@ -148,7 +149,7 @@ mount_file() {
     src="$1"
     dst="$2"
     test -e "$src" || return 1
-    must test -d "$dst"
+    rb test -d "$dst"
     unset TYPE PTTYPE
     # Use a subshell to avoid polluting the real environment.
     # Reminder: `return` exits from the subshell, not the function.
@@ -162,24 +163,56 @@ mount_file() {
                     return 0
                 else
                     warn "No /proc found in $src"
-                    must umount "$dst"
+                    rb umount "$dst"
                 fi
             fi
         elif [ -n "$PTTYPE" ]; then  # A partition table
-            loopdev=$(must losetup -f)
-            must losetup "$loopdev" "$src"
+            loopdev=$(rb losetup -f)
+            rb losetup "$loopdev" "$src"
             for looppart in "$loopdev"p*; do
                 warn "Trying to loop-mount $looppart"
                 mount_file "$looppart" "$dst" && return 0
             done
-            must losetup -d "$loopdev"
+            rb losetup -d "$loopdev"
         fi
         return 1
-    ) || return 1
+    ) || return $?
 }
 
-# Run a command and fall to a debug shell if it returns false.
-must() {
+# Run a command. Block if it failed.
+# Temporarily give a shell; replace it with "repeat y/n" in the final product;
+# also check for batch mode (no tty) and die if so.
+rb() {
+    while ! rwr "$@"; do
+        debug_shell "Type 'exit 0' to retry, or 'exit 1' to terminate" || die
+    done
+}
+
+# Run a command. Exit if it failed.
+re() {
+    rwr "$@" || die
+}
+
+# Run a command and return 0. Silently.
+rs() {
+    RWR_SILENCE=1 rwr "$@" || true
+}
+
+# Run a command silently and return $?. Used like `rsr cmd1 || cmd2`.
+# This is just a shortcut for `cmd1 >/dev/null 2>&1 || cmd2`.
+rsr() {
+    RWR_SILENCE=1 rwr "$@" || return $?
+}
+
+# Run a command and return 0. Warn if it failed.
+rw() {
+    rwr "$@" || true
+}
+
+# Run a command. Warn if it failed. Return $?.
+# Don't warn if $RWR_SILENCE is set, to easily implement rsr().
+# Used like `rwr cmd1 || cmd2`.
+rwr() {
     local want got
 
     if [ "$1" = "!" ]; then
@@ -188,19 +221,17 @@ must() {
     else
         want=0
     fi
-    while true; do
-        if "$@"; then
-            got=0
-        else
-            got=1
-        fi
-        if [ "$want" = "$got" ]; then
-            break
-        else
-            debug_shell "LTSP command failed: $*
-Type 'exit 0' to retry, or 'exit 1' to terminate" || die
-        fi
-    done
+    got=0
+    if [ -n "$RWR_SILENCE" ]; then
+        "$@" >/dev/null 2>&1 || got=$?
+    else
+        "$@" || got=$?
+    fi
+    # Failed if either of them is zero and the other non-zero
+    if [ "$want" = 0 -a "$got" != 0 ] || [ "$want" != 0 -a "$got" = 0 ]; then
+        test -n "$RWR_SILENCE" || warn "LTSP command failed: $*"
+    fi
+    return $got
 }
 
 # Run all the main_script() functions we already sourced

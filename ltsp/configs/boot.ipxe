@@ -24,7 +24,7 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-set img buster-gnome
+set img bionic-ubuntu
 goto start
 
 :3c:07:71:a2:02:e3
@@ -43,6 +43,7 @@ item bionic-mate-sch64  bionic-mate-sch64
 item bionic-minimal     bionic-minimal
 item bionic-ubuntu      bionic-ubuntu
 item buster-gnome       buster-gnome
+item fat                fat
 item fedora30           fedora30
 item gentoo             gentoo
 item jessie-mate        jessie-mate
@@ -69,7 +70,7 @@ choose --timeout ${menu-timeout} --default ${img} img || goto cancel
 
 ## We set the default Linux cmdline here, right after ${img} was selected:
 # Read the wiki for appropriate cmdlines for NFS, AoE, dracut etc.
-set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 break!=bottom
+set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 break!=bottom ltsploop!=casper/filesystem.squashfs sloglevel=5 snetconsole=@${ip}/enp0s3,@${srv}/
 goto ${img}
 
 :bionic-mate-sch32
@@ -77,13 +78,14 @@ goto ${img}
 :bionic-minimal
 :bionic-ubuntu
 :buster-gnome
+:fat
 :fedora30
 :gentoo
 :jessie-mate
 :stretch-mate-sch
 :tara-cinnamon
 :xenial-mate-sch
-kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload
+kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img
 boot || goto failed
@@ -99,8 +101,8 @@ goto linux_via_ipxe
 :linux_via_ipxe
 # This code covers all Linux images and architectures, except "linux_via_grub".
 # In EFI mode, iPXE requires initrds to be specified in the cmdline.
-set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
-set cmdline ${cmdline_extra} root=/dev/nfs nfsroot=${srv}:/opt/ltsp/images ltsploop=/${img}.img BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
+set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
+set cmdline ${cmdline_extra} root=/dev/nfs nfsroot=${srv}:/opt/ltsp/images ltsploop=/${img}.img BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd --name ltsp.img /ltsp/ltsp-fix-nbd.img
@@ -111,7 +113,7 @@ boot || goto failed
 # But grub fails with proxyDHCP: https://savannah.gnu.org/bugs/index.php?55636
 # Using both of them works fine!
 # To simplify grub.cfg, we pass root-path=${cmdline} and filename=${initrd}
-set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} fastboot rootflags=ro,noload init=/sbin/init-ltsp
+set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
 set net0/dhcp-server ${srv}
 set net0/next-server ${srv}
 set net0/root-path /ltsp/${img}/vmlinuz ${cmdline}
