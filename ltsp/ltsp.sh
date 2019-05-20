@@ -95,20 +95,48 @@ is_command() {
         is_command=1
     fi
     for fun in "$@"; do
-        command -v "$fun" >/dev/null || return 1
+        command -v "$fun" >/dev/null || return $?
     done
 }
 
-# Export the kernel cmdline ltsp.* variables
 kernel_variables() {
-    local v
-
-    # TODO: imitate the kernel cmdline parsing in awk (spaces and all)
-    for v in $(cat /proc/cmdline); do
-        test "$v" = "${v#ltsp.}" && continue
-        v=${v#ltsp.}
-        export "$(echo "$v" | awk -F= '{ OFS=FS; $1=toupper($1); print }')"
-    done
+    # Extreme scenario: ltsp.loopback="/path/to ltsp.vbox=1"
+    # We don't want that to set VBOX=1.
+    # Plan: replace spaces between quotes with \001,
+    # then split the parameters using space,
+    # then keep the ones that look like ltsp.var=value,
+    # and finally restore the spaces.
+    # TODO: should we add quotes when they don't exist?
+    # Note that it'll be hard when var=value" with "quotes" inside "it
+    rb eval "$(busybox awk 'BEGIN { FS=""; }
+    {
+        s=$0   # source
+        d=""   # dest
+        inq=0  # in quote
+        split(s, chars, "")
+        for (i=1; i <= length(s); i++) {
+            if (inq && chars[i] == " ")
+                d=d "\001"
+            else {
+                d=d "" chars[i]
+                if (chars[i] == "\"")
+                    inq=!inq
+            }
+        }
+        split(d, vars, " ")
+        for (i=1; i <= length(vars); i++) {
+            gsub("\001", " ", vars[i])
+            if (tolower(vars[i]) ~ /^ltsp.[a-zA-Z][-a-zA-Z0-9_]*=/) {
+                varvalue=substr(vars[i], 6)
+                eq=index(varvalue,"=")
+                var=toupper(substr(varvalue, 1, eq-1))
+                gsub("-", "_", var)
+                value=substr(varvalue, eq+1)
+                printf("%s=%s\n", var, value)
+            }
+        }
+    }
+    ' < /proc/cmdline)"
 }
 
 # Autodetect a source directory type and mount it to a target dir
@@ -154,8 +182,8 @@ mount_file() {
     # Use a subshell to avoid polluting the real environment.
     # Reminder: `return` exits from the subshell, not the function.
     (
-        vars=$(blkid -o export "$src" 2>/dev/null) || return 1
-        test -n "$vars" || return 1
+        vars=$(blkid -o export "$src" 2>/dev/null) || return $?
+        test -n "$vars" || return $?
         eval "$vars"
         if [ -n "$TYPE" ]; then  # A partition
             if mount -t "$TYPE" -o ro,noload "$src" "$dst" 2>/dev/null; then
