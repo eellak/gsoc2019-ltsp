@@ -11,5 +11,7 @@
 echo "This is init-ltsp $*, type exit to continue booting"
 rm /sbin/init
 mv /sbin/init.real /sbin/init
-bash
+mount | grep -w dev || echo ========NODEV========
+openvt bash
+PS1='(init) \u@\h:\w\# ' bash -i </dev/console >/dev/console 2>&1
 exec /sbin/init

@@ -22,22 +22,31 @@ fi
 #    - Syslinux with IPAPPEND 2, or
 #    - Grub with local kernel and remote server
 #  * Possibly source ltsp-client.sh for $SERVER etc
+#  * Patch NBD
 main_ltsp_premount() {
     true
 }
 
 # Make root writable using a tmpfs overlay and override init
 main_ltsp_bottom() {
+    local loop
+
     warn "Running $0"
+    kernel_variables
     img=${nfsroot##*/}
-    if [ -n "$ltsploop" ]; then
-        rb mount_file "$rootmnt/${ltsploop#/}" "$rootmnt"
+    if [ -n "$LTSP_LOOP" ]; then
+        while read -r loop<&3; do
+            NO_PROC=1 rb mount_file "$rootmnt/${loop#/}" "$rootmnt"
+        done 3<<EOF
+$(echo "$LTSP_LOOP" | tr "," "\n")
+EOF
     else
         rb mount_dir "$rootmnt" "$rootmnt"
     fi
     is_writeable "$rootmnt" || rb overlay_root
     init_ltsp_d
     rb override_init
+    mount | grep -w dev || echo ========NODEV========
 }
 
 init_ltsp_d() {
@@ -52,15 +61,37 @@ init_ltsp_d() {
     test -f "$rootmnt/usr/lib/tmpfiles.d/systemd.conf" &&
         rw sed "s|^[aA]|# &|" -i "$rootmnt/usr/lib/tmpfiles.d/systemd.conf"
     # Silence dmesg: Failed to open system journal: Operation not supported
-    # Set it to "volatile" if you need journal
+    # Cap journal to 1M TODO make it configurable
     test -f "$rootmnt/etc/systemd/journald.conf" &&
-        rw sed "s|[^[alpha]]*Storage=.*|Storage=none|" \
+        rw sed -e "s|[^[alpha]]*Storage=.*|Storage=volatile|" \
+            -e "s|[^[alpha]]*RuntimeMaxUse=.*|RuntimeMaxUse=1M|" \
+            -e "s|[^[alpha]]*ForwardToSyslog=.*|ForwardToSyslog=no|" \
             -i "$rootmnt/etc/systemd/journald.conf"
-    for service in apt-daily.service apt-daily-upgrade.service; do
+    test -f "$rootmnt/etc/systemd/system.conf" &&
+        rw sed "s|[^[alpha]]*DefaultTimeoutStopSec=.*|DefaultTimeoutStopSec=10s|" \
+            -i "$rootmnt/etc/systemd/system.conf"
+    test -f "$rootmnt/etc/systemd/user.conf" &&
+        rw sed "s|[^[alpha]]*DefaultTimeoutStopSec=.*|DefaultTimeoutStopSec=10s|" \
+            -i "$rootmnt/etc/systemd/user.conf"
+    for service in apt-daily.service apt-daily-upgrade.service snapd.seeded.service rsyslog.service; do
         rw ln -s /dev/null "$rootmnt/etc/systemd/system/$service"
     done
+    rs rm -f "$rootmnt/etc/init.d/shared-folders"
     rw rm -f "$rootmnt/etc/cron.daily/mlocate"
+    rw rm -f "$rootmnt/var/crash"*
+    rw rm -f "$rootmnt/etc/resolv.conf"
+    echo "nameserver 194.63.238.4" > "$rootmnt/etc/resolv.conf"
     nfsmount 10.161.254.11:/var/rw/home "$rootmnt/home"
+    printf "qwer';lk\nqwer';lk\n" | rw chroot "$rootmnt" passwd
+    rb chroot "$rootmnt" useradd \
+	    --comment 'LTSP live user,,,' \
+	    --groups adm,cdrom,sudo,dip,plugdev,lpadmin  \
+	    --create-home \
+	    --password '$6$bKP3Tahd$a06Zq1j.0eKswsZwmM7Ga76tKNCnueSC.6UhpZ4AFbduHqWA8nA5V/8pLHYFC4SrWdyaDGCgHeApMRNb7mwTq0' \
+	    --shell /bin/bash \
+	    --uid 998 \
+	    --user-group \
+	    ltsp
 }
 
 is_writeable() {

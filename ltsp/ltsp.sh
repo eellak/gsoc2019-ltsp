@@ -58,7 +58,10 @@ debug_shell() {
     warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
     # TODO: make this "repeat y/n" for security reasons, unless some
     # cmdline parameter is set. Also, check if stdin is valid (| pipe).
-    if is_command bash; then
+    if is_command panic; then
+        # In initramfs-tools; panic stops splash, gets a console etc
+        panic
+    elif is_command bash; then
         bash
     else
         sh
@@ -100,7 +103,11 @@ is_command() {
 }
 
 kernel_variables() {
-    # Extreme scenario: ltsp.loopback="/path/to ltsp.vbox=1"
+    test -n "$kernel_variables" && return 0
+
+    # Exit if already evaluated
+    kernel_variables=1
+    # Extreme scenario: ltsp.loop="/path/to ltsp.vbox=1"
     # We don't want that to set VBOX=1.
     # Plan: replace spaces between quotes with \001,
     # then split the parameters using space,
@@ -108,7 +115,8 @@ kernel_variables() {
     # and finally restore the spaces.
     # TODO: should we add quotes when they don't exist?
     # Note that it'll be hard when var=value" with "quotes" inside "it
-    rb eval "$(busybox awk 'BEGIN { FS=""; }
+    rb eval "
+$(awk 'BEGIN { FS=""; }
     {
         s=$0   # source
         d=""   # dest
@@ -124,12 +132,12 @@ kernel_variables() {
             }
         }
         split(d, vars, " ")
-        for (i=1; i <= length(vars); i++) {
+        for (i=1; i in vars; i++) {
             gsub("\001", " ", vars[i])
             if (tolower(vars[i]) ~ /^ltsp.[a-zA-Z][-a-zA-Z0-9_]*=/) {
                 varvalue=substr(vars[i], 6)
                 eq=index(varvalue,"=")
-                var=toupper(substr(varvalue, 1, eq-1))
+                var="LTSP_" toupper(substr(varvalue, 1, eq-1))
                 gsub("-", "_", var)
                 value=substr(varvalue, eq+1)
                 printf("%s=%s\n", var, value)
@@ -165,14 +173,14 @@ and we need to recursively mount subdirs etc"
             rb umount "$dst"
         fi
     done 3<<EOF
-$(find "$src" -type f -maxdepth 1 -size +100000k)
+$(find "$src" -maxdepth 1 -type f -size +100000k | sort)
 EOF
     return 1
 }
 
 # Try to loop mount a raw partition/disk file in a target dir
 mount_file() {
-    local src dst TYPE PTTYPE
+    local src dst TYPE PTTYPE noload
 
     src="$1"
     dst="$2"
@@ -186,13 +194,22 @@ mount_file() {
         test -n "$vars" || return $?
         eval "$vars"
         if [ -n "$TYPE" ]; then  # A partition
-            if mount -t "$TYPE" -o ro,noload "$src" "$dst" 2>/dev/null; then
+            case "$TYPE" in
+                ext*)  noload=",noload" ;;
+                *)     unset noload ;;
+            esac
+            if mount -t "$TYPE" -o ro$noload "$src" "$dst"; then
+                # NO_PROC may be set in the environment by main_ltsp_bottom.
+                # In ltsp.loop=xxx, /proc may exist in a subsequent mount.
+                test -n "$NO_PROC" && return 0
                 if [ -d "$dst/proc" ]; then
                     return 0
                 else
                     warn "No /proc found in $src"
                     rb umount "$dst"
                 fi
+            else
+                return $?
             fi
         elif [ -n "$PTTYPE" ]; then  # A partition table
             loopdev=$(rb losetup -f)
@@ -238,8 +255,10 @@ rw() {
 }
 
 # Run a command. Warn if it failed. Return $?.
-# Don't warn if $RWR_SILENCE is set, to easily implement rsr().
+# Don't warn if $RWR_SILENCE is set, to easily implement rs() and rsr().
 # Used like `rwr cmd1 || cmd2`.
+# Note that in ltsp-client, we frequently use the rb() function in order to
+# block if something failed, while in ltsp-server re() is more suitable.
 rwr() {
     local want got
 

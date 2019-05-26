@@ -24,7 +24,7 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-set img bionic-ubuntu
+set img x86_32
 goto start
 
 :3c:07:71:a2:02:e3
@@ -38,22 +38,11 @@ goto start
 ## To hide only some menu items, comment their lines here:
 menu iPXE boot menu - ${hostname}:${srv}:${root-path} || goto ${img}
 item --gap              Operating systems:
-item bionic-mate-sch32  bionic-mate-sch32
-item bionic-mate-sch64  bionic-mate-sch64
-item bionic-minimal     bionic-minimal
-item bionic-ubuntu      bionic-ubuntu
-item buster-gnome       buster-gnome
-item fat                fat
-item fedora30           fedora30
-item gentoo             gentoo
-item jessie-mate        jessie-mate
-item stretch-mate-sch   stretch-mate-sch
-item tara-cinnamon      tara-cinnamon
-item xenial-mate-sch    xenial-mate-sch
-item --key 1 x86_32     Ubuntu Mate 18.04 LTSP (x86_32)
-item --key 2 x86_64     Ubuntu Mate 18.04 LTSP (x86_64)
-item --key 3 livecd     Some Ubuntu Live CD
-item --key 4 netinst    Ubuntu network installer
+item --key 1 vbox_vm    Some VirtualBox VM
+item --key 2 x86_32     Ubuntu Mate 18.04 LTSP (x86_32)
+item --key 3 x86_64     Ubuntu Mate 18.04 LTSP (x86_64)
+item --key 4 livecd     Some Ubuntu Live CD
+item --key 5 netinst    Ubuntu network installer
 item
 item --gap              Advanced options:
 item --key m memtest    Memory test
@@ -70,42 +59,35 @@ choose --timeout ${menu-timeout} --default ${img} img || goto cancel
 
 ## We set the default Linux cmdline here, right after ${img} was selected:
 # Read the wiki for appropriate cmdlines for NFS, AoE, dracut etc.
-set cmdline ${cmdline_extra} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 break!=bottom ltsploop!=casper/filesystem.squashfs sloglevel=5 snetconsole=@${ip}/enp0s3,@${srv}/
+# set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} root=/dev/nfs nfsroot=${srv}:/opt/ltsp/images ltsploop=${img}.img init=/sbin/init-ltsp
+set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} ip=${ip}:${srv}:${gateway}:${netmask} break=bottom init=/sbin/init-ltsp
 goto ${img}
 
-:bionic-mate-sch32
-:bionic-mate-sch64
-:bionic-minimal
-:bionic-ubuntu
-:buster-gnome
-:fat
-:fedora30
-:gentoo
-:jessie-mate
-:stretch-mate-sch
-:tara-cinnamon
-:xenial-mate-sch
-kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline} BOOTIF=01-${mac:hexhyp}
+# While developing, I'm setting img and cmdline here; img can be:
+# bionic-mate-sch32 bionic-mate-sch64 bionic-minimal bionic-ubuntu buster-gnome
+# fat fedora30 gentoo jessie-mate stretch-mate-sch tara-cinnamon xenial-mate-sch
+:vbox_vm
+set img bionic-mate-sch32
+set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} vga!=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ip=${ip}:${srv}:${gateway}:${netmask} break!=bottom # ltsp.loop=ubuntu-mate-18.04.1-desktop-i386.iso,casper/filesystem.squashfs
+kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img
 boot || goto failed
 
 :x86_32
-set img bionic-mate-sch32
 iseq ${platform} pcbios && goto linux_via_ipxe || goto linux_via_grub
 
 :x86_64
-set img bionic-mate-sch64
 goto linux_via_ipxe
 
 :linux_via_ipxe
 # This code covers all Linux images and architectures, except "linux_via_grub".
 # In EFI mode, iPXE requires initrds to be specified in the cmdline.
-set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
-set cmdline ${cmdline_extra} root=/dev/nfs nfsroot=${srv}:/opt/ltsp/images ltsploop=/${img}.img BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
-initrd --name ltsp.img /ltsp/ltsp-fix-nbd.img
+# ltsp-empty will be ltsp.img in the end; currently I'm using linux_via_*
+# for testing legacy ltsp installations though
+initrd --name ltsp.img /ltsp/ltsp-empty.img
 boot || goto failed
 
 :linux_via_grub
@@ -113,11 +95,10 @@ boot || goto failed
 # But grub fails with proxyDHCP: https://savannah.gnu.org/bugs/index.php?55636
 # Using both of them works fine!
 # To simplify grub.cfg, we pass root-path=${cmdline} and filename=${initrd}
-set cmdline ${cmdline_extra} root=/dev/nbd0p1 nbdroot=${srv}:/opt/ltsp/${img} BOOTIF=01-${mac:hexhyp} init=/sbin/init-ltsp
 set net0/dhcp-server ${srv}
 set net0/next-server ${srv}
 set net0/root-path /ltsp/${img}/vmlinuz ${cmdline}
-set net0/filename /ltsp/${img}/initrd.img /ltsp/ltsp-fix-nbd.img
+set net0/filename /ltsp/${img}/initrd.img /ltsp/ltsp-empty.img
 kernel /grub/grubnetx64.efi.signed
 boot || goto failed
 
