@@ -7,15 +7,15 @@
 main() {
     local args
 
-    args=$(re getopt -n "$LTSP_TOOL" -o "hV" \
+    args=$(re getopt -n "$LTSP_APPLET" -o "hV" \
         -l "help,version" -- "$@")
     re eval "set -- $args"
     while true; do
         case "$1" in
-            -h|--help) tool_usage; exit 0 ;;
-            -V|--version) tool_version; exit 0 ;;
+            -h|--help) applet_usage; exit 0 ;;
+            -V|--version) applet_version; exit 0 ;;
             --) shift ; break ;;
-            *) die "$LTSP_TOOL: error in cmdline" ;;
+            *) die "$LTSP_APPLET: error in cmdline" ;;
         esac
         shift
     done
@@ -29,15 +29,15 @@ main_ltsp_initrd() {
     tmp=$(mktemp -d)
     cp -a "$LTSP_DIR/initrd/." "$tmp/"
     cp -a "$LTSP_DIR/ltsp.sh" "$tmp/ltsp/"
-    mkdir -p "$tmp/ltsp/tools/"
-    cp -a "$LTSP_DIR/tools/ltsp" "$tmp/ltsp/tools/"
+    mkdir -p "$tmp/ltsp/applets/"
+    cp -a "$LTSP_DIR/applets/ltsp" "$tmp/ltsp/applets/"
     # Users can override things from /etc/ltsp
     if [ -d /etc/ltsp/initrd ]; then
         cp -a "/etc/ltsp/initrd/." "$tmp/"
     fi
     if [ -f /etc/ltsp/ltsp-client.conf ]; then
-        "$LTSP_DIR/tools/ltsp-initrd/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
-            >"$tmp/ltsp/tools/ltsp/ltsp-client.sh"
+        "$LTSP_DIR/applets/ltsp-initrd/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
+            >"$tmp/ltsp/applets/ltsp/ltsp-client.sh"
     fi
     # Syntax check all the shell scripts
     while read -r script <&3; do

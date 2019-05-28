@@ -4,7 +4,7 @@
 
 # Sourced by LTSP initramfs scripts
 
-# Source the ltsp.sh functions without any tools
+# Source the ltsp.sh functions without any applets
 LTSP_MAIN=true . /ltsp/ltsp.sh
 
 if [ -f /scripts/functions ]; then

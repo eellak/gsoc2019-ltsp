@@ -4,7 +4,7 @@
 
 # LTSP_PHASE=init
 # Override /sbin/init to run some LTSP code, then restore the real init.
-# I think it can't be just a symlink to ltsp.sh like the other tools,
+# I think it can't be just a symlink to ltsp.sh like the other applets,
 # because of initramfs init validation / broken symlink at that point.
 
 main() {

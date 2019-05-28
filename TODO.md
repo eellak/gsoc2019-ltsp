@@ -2,7 +2,7 @@
 * Implement ltsp-kernels, ltsp-initrd
 * Move away from 55-num to hooks:
   rw run_hook hook_function "$@"
-* Implement init-ltsp.d as a tool
+* Implement init-ltsp.d as an applet
 * Move the current ltsp code there
 * See casper scripts, e.g. disabling snapd updates
 

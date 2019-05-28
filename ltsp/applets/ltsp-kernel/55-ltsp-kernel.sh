@@ -6,19 +6,19 @@
 cmdline() {
     local args
 
-    args=$(re getopt -n "$LTSP_TOOL" -o "hi:k:n:p:V" \
+    args=$(re getopt -n "$LTSP_APPLET" -o "hi:k:n:p:V" \
         -l "help,initrd:,kernel:,name:,partition:,version" -- "$@")
     re eval "set -- $args"
     while true; do
         case "$1" in
-            -h|--help) tool_usage; exit 0 ;;
+            -h|--help) applet_usage; exit 0 ;;
             -i|--initrd) shift; INITRD=$1 ;;
             -k|--kernel) shift; KERNEL=$1 ;;
             -n|--name) shift; NAME=$1 ;;
             -p|--partition) shift; PARTITION=$1 ;;
-            -V|--version) tool_version; exit 0 ;;
+            -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$LTSP_TOOL: error in cmdline" ;;
+            *) die "$LTSP_APPLET: error in cmdline" ;;
         esac
         shift
     done

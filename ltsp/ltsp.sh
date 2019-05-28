@@ -3,13 +3,13 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# All /usr/[s]bin/ltsp-* tools are symlinks to ltsp.sh, which serves as
-# an entry point, sources the appropriate configuration and tool functions etc.
+# All /usr/[s]bin/ltsp-* applets are symlinks to ltsp.sh, which serves as
+# an entry point, sources the appropriate configuration and applet functions etc.
 # This architecture makes it possible to avoid hardcoded paths like
-#     . /usr/share/ltsp/ltsp-tool-functions.sh
+#     . /usr/share/ltsp/ltsp-applet-functions.sh
 # It also allows shell scripts to have a .sh extension for highlighting,
 # while /usr/[s]bin/ltsp-* binaries not to have an extension.
-# Some tools run inside the initramfs, so some functions need to be compatible
+# Some applets run inside the initramfs, so some functions need to be compatible
 # with busybox.
 
 
@@ -17,24 +17,15 @@ aa_main() {
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
     # We use this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
-    # Allow overriding LTSP_DIR and LTSP_TOOL
+    # Allow overriding LTSP_DIR and LTSP_APPLET
     if [ -z "$LTSP_DIR" ]; then
         LTSP_DIR=$(readlink -f "$0")
         LTSP_DIR=${LTSP_DIR%/*}
     fi
-    test -z "$LTSP_TOOL" && LTSP_TOOL=${0##*/}
-    source_tool "ltsp" "$@"
-    # This calls 55-ltsp.sh>main_ltsp(), which will eventually run the tool
+    test -z "$LTSP_APPLET" && LTSP_APPLET=${0##*/}
+    source_applet "ltsp" "$@"
+    # This calls 55-ltsp.sh>main_ltsp(), which will eventually run the applet
     run_main_functions "$@"
-}
-
-# TODO: do we need this?
-boolean_is_true() {
-    case "$1" in
-       # Match all cases of true|y|yes
-       [Tt][Rr][Uu][Ee]|[Yy]|[Yy][Ee][Ss]) return 0 ;;
-       *) return 1 ;;
-    esac
 }
 
 # True if can chroot into this dir
@@ -47,7 +38,7 @@ can_chroot() {
 # stddebug (e.g. #5) initially, then redirect to it here.
 debug() {
     case ",$LTSP_DEBUG," in
-        *",$LTSP_TOOL,"*|,1,|,true,)  ;;
+        *",$LTSP_APPLET,"*|,1,|,true,)  ;;
         *)  return 0;
     esac
     warn "LTSP_DEBUG:" "$@"
@@ -72,7 +63,7 @@ debug_shell() {
 # No need to pass a message if the failed command displays the error.
 die() {
     if [ $# -eq 0 ]; then
-        warn "Aborting ${LTSP_TOOL:-LTSP}"
+        warn "Aborting ${LTSP_APPLET:-LTSP}"
     else
         warn "$@"
     fi
@@ -346,21 +337,21 @@ run_parts_list() {
     | sed 's@[^\t]*\t[^\t]*\t@@'
 }
 
-source_tool() {
-    local tool script
+source_applet() {
+    local applet script
 
-    tool=$1
+    applet=$1
     shift
     # One of the dirs must exist
-    if [ ! -d "$LTSP_DIR/tools/$tool" ] && [ ! -d "/run/ltsp/tools/$tool" ]; then
-        die "Not a directory: $LTSP_DIR/tools/$tool"
+    if [ ! -d "$LTSP_DIR/applets/$applet" ] && [ ! -d "/run/ltsp/applets/$applet" ]; then
+        die "Not a directory: $LTSP_DIR/applets/$applet"
     fi
     # https://www.freedesktop.org/software/systemd/man/systemd.unit.html
     # Drop-in files in /etc take precedence over those in /run
     # which in turn take precedence over those in /usr.
-    LTSP_SCRIPTS=$(run_parts_list "$LTSP_DIR/tools/$tool" \
-    "/run/ltsp/tools/$tool" \
-    "/etc/ltsp/tools/$tool")
+    LTSP_SCRIPTS=$(run_parts_list "$LTSP_DIR/applets/$applet" \
+    "/run/ltsp/applets/$applet" \
+    "/etc/ltsp/applets/$applet")
     while read -r script <&3; do
         debug "Sourcing: $script"
         . "$script"
@@ -369,18 +360,18 @@ $LTSP_SCRIPTS
 EOF
 }
 
-tool_usage() {
+applet_usage() {
     local text
 
-    text=$(re man "$LTSP_TOOL")
+    text=$(re man "$LTSP_APPLET")
     printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
         "$(echo "$text" | sed -n '/^SYNOPSIS$/,/^[^ ]/s/       //p')" \
         "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/       //p')" \
         "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/       /  /p')"
 }
 
-tool_version() {
-    echo "$LTSP_TOOL $LTSP_VERSION"
+applet_version() {
+    echo "$LTSP_APPLET $LTSP_VERSION"
 }
 
 # Print a message to stderr
@@ -389,6 +380,6 @@ warn() {
 }
 
 
-# Set LTSP_SKIP_SCRIPTS=ltsp to source without executing any tools
+# Set LTSP_SKIP_SCRIPTS=ltsp to source without executing any applets
 # Set LTSP_MAIN=true to source only this file
 "${LTSP_MAIN:-aa_main}" "$@"

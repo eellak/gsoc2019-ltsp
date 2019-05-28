@@ -10,14 +10,14 @@
 VERSION=${1:-19.09}
 date=$(date "+%Y-%m-%d")
 for mp in *.[0-9].md; do
-    tool_section=${mp%.md}
-    tool=${tool_section%.[0-9]}
-    section=${tool_section#$tool.}
+    applet_section=${mp%.md}
+    applet=${applet_section%.[0-9]}
+    section=${applet_section#$applet.}
     mkdir -p "man/man$section"
     {
-        echo "$tool $section $date \"LTSP $VERSION\"
+        echo "$applet $section $date \"LTSP $VERSION\"
 =====================================
 "
         cat "$mp"
-    } | go-md2man > "man/man$section/$tool.$section"
+    } | go-md2man > "man/man$section/$applet.$section"
 done
