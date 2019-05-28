@@ -17,7 +17,6 @@ aa_main() {
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
     # We use this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
-    trap "trap_cleanup" 0 HUP INT QUIT SEGV PIPE TERM
     # Allow overriding LTSP_DIR and LTSP_TOOL
     if [ -z "$LTSP_DIR" ]; then
         LTSP_DIR=$(readlink -f "$0")
@@ -27,7 +26,6 @@ aa_main() {
     source_tool "ltsp" "$@"
     # This calls 55-ltsp.sh>main_ltsp(), which will eventually run the tool
     run_main_functions "$@"
-    trap - 0 HUP INT QUIT SEGV PIPE TERM
 }
 
 # TODO: do we need this?
@@ -45,6 +43,8 @@ can_chroot() {
 }
 
 # Print a message to stderr if $LTSP_DEBUG is appropriately set
+# TODO: stderr might be redirected; if LTSP_DEBUG is set, backup stderr to
+# stddebug (e.g. #5) initially, then redirect to it here.
 debug() {
     case ",$LTSP_DEBUG," in
         *",$LTSP_TOOL,"*|,1,|,true,)  ;;
@@ -71,14 +71,13 @@ debug_shell() {
 # Print a message to stderr and exit with an error code.
 # No need to pass a message if the failed command displays the error.
 die() {
-    trap - 0 HUP INT QUIT SEGV PIPE TERM
     if [ $# -eq 0 ]; then
-        warn "ERROR in ${LTSP_TOOL:-LTSP}!"
-        debug_shell
+        warn "Aborting ${LTSP_TOOL:-LTSP}"
     else
         warn "$@"
     fi
     # If called from subshells, this just exits the subshell
+    # With `set -e` though, it'll still exit on commands like x=$(false)
     exit 1
 }
 
@@ -371,17 +370,17 @@ EOF
 }
 
 tool_usage() {
-    man "$LTSP_TOOL"
+    local text
+
+    text=$(re man "$LTSP_TOOL")
+    printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
+        "$(echo "$text" | sed -n '/^SYNOPSIS$/,/^[^ ]/s/       //p')" \
+        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/       //p')" \
+        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/       /  /p')"
 }
 
 tool_version() {
     echo "$LTSP_TOOL $LTSP_VERSION"
-}
-
-trap_cleanup() {
-    # Stop trapping
-    trap - 0 HUP INT QUIT SEGV PIPE TERM
-    die
 }
 
 # Print a message to stderr

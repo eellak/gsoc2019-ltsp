@@ -5,20 +5,17 @@
 # Create the additional LTSP initrd image at $TFTP/ltsp/ltsp.img
 
 main() {
-    local args tmp
+    local args
 
-    if ! args=$(getopt -n "$LTSP_TOOL" -o "hV" \
+    args=$(re getopt -n "$LTSP_TOOL" -o "hV" \
         -l "help,version" -- "$@")
-    then
-        exit 1
-    fi
-    eval "set -- $args"
+    re eval "set -- $args"
     while true; do
         case "$1" in
             -h|--help) tool_usage; exit 0 ;;
             -V|--version) tool_version; exit 0 ;;
             --) shift ; break ;;
-            *) die "$LTSP_TOOL: Internal error!" ;;
+            *) die "$LTSP_TOOL: error in cmdline" ;;
         esac
         shift
     done

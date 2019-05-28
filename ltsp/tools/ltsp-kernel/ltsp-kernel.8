@@ -1,0 +1,60 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "LTSP\-KERNEL" "8" "May 2019" "" ""
+.
+.SH "NAME"
+\fBltsp\-kernel\fR \- copy kernel from image to TFTP
+.
+.SH "SYNOPSIS"
+\fBltsp\-kernel\fR [\fB\-h\fR] [\fB\-i=initrd\fR] [\fB\-k=kernel\fR] [\fB\-n=name\fR] [\fB\-p=partition\fR] [\fBimage\fR]
+.
+.SH "DESCRIPTION"
+Copy vmlinuz and initrd\.img from an image or directory to TFTP\. If \fBimage\fR is unspecified, process all of them\. For simplicity, only directories (chroots) and raw images are supported, either full filesystems (ext4 etc) or full disks (VMs)\. The may be sparse to preserve space\. Don\'t use a separate /boot nor LVM in disk images\. The targets will always be named vmlinuz and initrd\.img to simplify boot\.ipxe\.
+.
+.SH "OPTIONS"
+.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Display a help message\.
+.
+.TP
+\fB\-i\fR, \fB\-\-initrd\fR=\fIpath\fR
+Specify the initrd path; try to autodetect if undefined\.
+.
+.TP
+\fB\-k\fR, \fB\-\-kernel\fR=\fIpath\fR
+Specify the kernel path; try to autodetect if undefined\.
+.
+.TP
+\fB\-n\fR, \fB\-\-name\fR=\fIname\fR
+Specify the image name; otherwise it defaults to the (parent, for files) directory name; or to `uname \-m` in the chrootless case\.
+.
+.TP
+\fB\-p\fR, \fB\-\-partition\fR=\fInumber\fR
+Image is a raw disk; the kernel/initrd is in partition \fBNUMBER\fR\.
+.
+.TP
+\fB\-\-version\fR
+Display the version information\.
+.
+.SH "FILES"
+.
+.SH "ENVIRONMENT"
+.
+.SH "EXAMPLES"
+.
+.nf
+
+sudo ~/bin/ltsp\-kernel \-p 1 /srv/ltsp/bionic\-mate\-sch32/bionic\-mate\-sch32\-flat\.vmdk
+.
+.fi
+.
+.P
+TODO: implement ltsp\-chroot as well; for quick things like looking up the kernel name\. TODO: document that we allow defining parameters in the environment, e\.g\. partition=1 ltsp\-kernel image " "$0"
+.
+.SH "COPYRIGHT"
+Copyright 2019 the LTSP team, see https://github\.com/ltsp/ltsp/graphs/contributors\.
+.
+.SH "SEE ALSO"
+ltsp(8), ltsp\-image(8)

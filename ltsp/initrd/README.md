@@ -41,6 +41,8 @@ Wait wait, these are only missing on the default, host-only initramfs.
 In the one that includes nbd-client, it's only missing these:
     busybox cut date env hostname ipconfig mkswap mktemp nc netstat nfsmount
     partprobe pgrep pidof pivot_root rmdir run-parts seq ss sync touch wget
+In the rescue one, it probably contains support for nfs root, and these:
+    basename chmod expr netstat
 
 ### Dracut notes
 /lib/dracut/modules.txt contains the dracut modules (nfs, nbd etc)

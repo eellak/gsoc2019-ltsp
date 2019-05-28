@@ -32,6 +32,6 @@ fi
 # Distributions may override upstream functions via subsequent scripts
 main_ltsp() {
     source_tool "$LTSP_TOOL" "$@"
-    # All tools are required to have a main
-    main "$@"
+    # All tools are required to have an entry function named cmdline
+    cmdline "$@"
 }
