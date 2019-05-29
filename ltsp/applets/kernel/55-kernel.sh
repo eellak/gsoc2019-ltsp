@@ -2,7 +2,7 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-cmdline() {
+applet_cmdline() {
     local args
 
     args=$(re getopt -n "$_APPLET" -o "hi:k:n:p:V" \
@@ -24,7 +24,7 @@ cmdline() {
     run_main_functions "$@"
 }
 
-main_ltsp_kernel() {
+kernel_main() {
     local img loop tmp
 
     tmp=$(re mktemp -d)

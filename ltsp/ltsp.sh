@@ -3,34 +3,42 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# Execution sequence:
+# This main() > source ltsp/* (and config/vendor overrides)
+# > ltsp_cmdline() > ltsp_scripts_main() > source applet/*
+# > applet_cmdline() > applet_scripts_main()
 main() {
-    # If basename is "ltsp" or "ltsp-applet", run normally.
-    # Otherwise assume that we're being sourced and just return.
-    μπα όχι να είναι με συγκεκριμένη μεταβλητή...?
-    _LTSP_APPLET="${0##*/}"
-    case "$_LTSP_APPLET" in
-        ltsp) _APPLET=ltsp ;;
-        ltsp-*) _APPLET=${_APPLET#ltsp-} ;;
-        *) return 0;
-    esac
-
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
-    # We use this quirk: `false && false; echo ok` ==> doesn't exit
+    # We use? TODO this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
-    _SRC_DIR=$(readlink -f "$0")
-    _SRC_DIR=${_SRC_DIR%/*}
 
+    # If we're being sourced, $0 doesn't point to ltsp.sh, which means we
+    # can't locate applets etc. So the caller should manually set _SRC_DIR
+    # to source ltsp, and _APPLET to additionally source an applet.
+    if [ -n "$_SRC_DIR" ]; then
+        _SOURCED=1
+        debug "ltsp.sh sourced by $0"
+        # Ignore all the caller command line parameters; they're not for us
+        set --
+        # Derive e.g. _LTSP_APPLET="ltsp-kernel" and _APPLET="kernel"
+        if [ -n "$_APPLET" ]; then
+            _LTSP_APPLET="ltsp-$_APPLET"
+        else
+            _LTSP_APPLET="ltsp"
+            _APPLET="ltsp"
+        fi
+    else
+        _SRC_DIR=$(re readlink -f "$0")
+        _SRC_DIR=${_SRC_DIR%/*}
+        _LTSP_APPLET="${0##*/}"
+        if [ "$_LTSP_APPLET" = "ltsp" ]; then
+            _APPLET=ltsp
+        else
+            _APPLET=${_LTSP_APPLET#ltsp-}
+        fi
+    fi
     source_applet "ltsp" "$@"
-    if applet != ltsp...
-    εδώ, να οργανώσω ποιος καλεί τι.
-    μάλλον η εδώ μαιν να καλέσει δυο φορές αππλετς, μία
-    για το λτσπ και μία για το αππλετ.
-    source_applet "$_APPLET" "$@"
-    # All applets are required to have an entry function named cmdline
-    cmdline "$@"
- εεε τις μαιν τις τρέχει η ψμδλινε    run_main_functions "$@"
-
- a nai exw kai th lush me ta hooks, an 8elw
+    ltsp_cmdline "$@"
 }
 
 applet_usage() {
@@ -38,13 +46,13 @@ applet_usage() {
 
     text=$(re man "$_LTSP_APPLET")
     printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
-        "$(echo "$text" | sed -n '/^SYNOPSIS$/,/^[^ ]/s/       //p')" \
-        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/       //p')" \
-        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/       /  /p')"
+        "$(echo "$text" | sed -n '/^SYNOPSIS/,/^[^ ]/s/^\(       \|$\)//p')" \
+        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/^\(       \|$\)//p')" \
+        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/^     //p')"
 }
 
 applet_version() {
-    echo "$_LTSP_APPLET $LTSP_VERSION"
+    echo "$_LTSP_APPLET $_VERSION"
 }
 
 # True if can chroot into this dir
