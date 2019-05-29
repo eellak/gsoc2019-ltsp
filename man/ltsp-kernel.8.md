@@ -58,7 +58,7 @@ Meh, a paragraph is needed before bullets can properly function. Anyway:
   running a quick **apt full-upgrade**.
 
 ## COPYRIGHT
-Copyright 2019 the LTSP team, see https://github.com/ltsp/ltsp/graphs/contributors.
+Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
 **ltsp**(8), **ltsp.conf**(5)

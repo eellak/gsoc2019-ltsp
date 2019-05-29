@@ -3,29 +3,48 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# All /usr/[s]bin/ltsp-* applets are symlinks to ltsp.sh, which serves as
-# an entry point, sources the appropriate configuration and applet functions etc.
-# This architecture makes it possible to avoid hardcoded paths like
-#     . /usr/share/ltsp/ltsp-applet-functions.sh
-# It also allows shell scripts to have a .sh extension for highlighting,
-# while /usr/[s]bin/ltsp-* binaries not to have an extension.
-# Some applets run inside the initramfs, so some functions need to be compatible
-# with busybox.
+main() {
+    # If basename is "ltsp" or "ltsp-applet", run normally.
+    # Otherwise assume that we're being sourced and just return.
+    μπα όχι να είναι με συγκεκριμένη μεταβλητή...?
+    _LTSP_APPLET="${0##*/}"
+    case "$_LTSP_APPLET" in
+        ltsp) _APPLET=ltsp ;;
+        ltsp-*) _APPLET=${_APPLET#ltsp-} ;;
+        *) return 0;
+    esac
 
-
-aa_main() {
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
     # We use this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
-    # Allow overriding LTSP_DIR and LTSP_APPLET
-    if [ -z "$LTSP_DIR" ]; then
-        LTSP_DIR=$(readlink -f "$0")
-        LTSP_DIR=${LTSP_DIR%/*}
-    fi
-    test -z "$LTSP_APPLET" && LTSP_APPLET=${0##*/}
+    _SRC_DIR=$(readlink -f "$0")
+    _SRC_DIR=${_SRC_DIR%/*}
+
     source_applet "ltsp" "$@"
-    # This calls 55-ltsp.sh>main_ltsp(), which will eventually run the applet
-    run_main_functions "$@"
+    if applet != ltsp...
+    εδώ, να οργανώσω ποιος καλεί τι.
+    μάλλον η εδώ μαιν να καλέσει δυο φορές αππλετς, μία
+    για το λτσπ και μία για το αππλετ.
+    source_applet "$_APPLET" "$@"
+    # All applets are required to have an entry function named cmdline
+    cmdline "$@"
+ εεε τις μαιν τις τρέχει η ψμδλινε    run_main_functions "$@"
+
+ a nai exw kai th lush me ta hooks, an 8elw
+}
+
+applet_usage() {
+    local text
+
+    text=$(re man "$_LTSP_APPLET")
+    printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
+        "$(echo "$text" | sed -n '/^SYNOPSIS$/,/^[^ ]/s/       //p')" \
+        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/       //p')" \
+        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/       /  /p')"
+}
+
+applet_version() {
+    echo "$_LTSP_APPLET $LTSP_VERSION"
 }
 
 # True if can chroot into this dir
@@ -38,7 +57,7 @@ can_chroot() {
 # stddebug (e.g. #5) initially, then redirect to it here.
 debug() {
     case ",$LTSP_DEBUG," in
-        *",$LTSP_APPLET,"*|,1,|,true,)  ;;
+        *",$_APPLET,"*|,1,|,true,)  ;;
         *)  return 0;
     esac
     warn "LTSP_DEBUG:" "$@"
@@ -63,7 +82,7 @@ debug_shell() {
 # No need to pass a message if the failed command displays the error.
 die() {
     if [ $# -eq 0 ]; then
-        warn "Aborting ${LTSP_APPLET:-LTSP}"
+        warn "Aborting ${_APPLET:-LTSP}"
     else
         warn "$@"
     fi
@@ -343,13 +362,13 @@ source_applet() {
     applet=$1
     shift
     # One of the dirs must exist
-    if [ ! -d "$LTSP_DIR/applets/$applet" ] && [ ! -d "/run/ltsp/applets/$applet" ]; then
-        die "Not a directory: $LTSP_DIR/applets/$applet"
+    if [ ! -d "$_SRC_DIR/applets/$applet" ] && [ ! -d "/run/ltsp/applets/$applet" ]; then
+        die "Not a directory: $_SRC_DIR/applets/$applet"
     fi
     # https://www.freedesktop.org/software/systemd/man/systemd.unit.html
     # Drop-in files in /etc take precedence over those in /run
     # which in turn take precedence over those in /usr.
-    LTSP_SCRIPTS=$(run_parts_list "$LTSP_DIR/applets/$applet" \
+    LTSP_SCRIPTS=$(run_parts_list "$_SRC_DIR/applets/$applet" \
     "/run/ltsp/applets/$applet" \
     "/etc/ltsp/applets/$applet")
     while read -r script <&3; do
@@ -360,26 +379,10 @@ $LTSP_SCRIPTS
 EOF
 }
 
-applet_usage() {
-    local text
-
-    text=$(re man "$LTSP_APPLET")
-    printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
-        "$(echo "$text" | sed -n '/^SYNOPSIS$/,/^[^ ]/s/       //p')" \
-        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/       //p')" \
-        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/       /  /p')"
-}
-
-applet_version() {
-    echo "$LTSP_APPLET $LTSP_VERSION"
-}
-
 # Print a message to stderr
 warn() {
     echo "$@" >&2
 }
 
 
-# Set LTSP_SKIP_SCRIPTS=ltsp to source without executing any applets
-# Set LTSP_MAIN=true to source only this file
-"${LTSP_MAIN:-aa_main}" "$@"
+main "$@"

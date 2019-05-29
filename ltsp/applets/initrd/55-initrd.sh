@@ -7,7 +7,7 @@
 main() {
     local args
 
-    args=$(re getopt -n "$LTSP_APPLET" -o "hV" \
+    args=$(re getopt -n "$_APPLET" -o "hV" \
         -l "help,version" -- "$@")
     re eval "set -- $args"
     while true; do
@@ -15,7 +15,7 @@ main() {
             -h|--help) applet_usage; exit 0 ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift ; break ;;
-            *) die "$LTSP_APPLET: error in cmdline" ;;
+            *) die "$_APPLET: error in cmdline" ;;
         esac
         shift
     done
@@ -27,16 +27,16 @@ main_ltsp_initrd() {
 
     # It's simpler to copy everything into a temp dir before calling cpio
     tmp=$(mktemp -d)
-    cp -a "$LTSP_DIR/initrd/." "$tmp/"
-    cp -a "$LTSP_DIR/ltsp.sh" "$tmp/ltsp/"
+    cp -a "$_SRC_DIR/initrd/." "$tmp/"
+    cp -a "$_SRC_DIR/ltsp.sh" "$tmp/ltsp/"
     mkdir -p "$tmp/ltsp/applets/"
-    cp -a "$LTSP_DIR/applets/ltsp" "$tmp/ltsp/applets/"
+    cp -a "$_SRC_DIR/applets/ltsp" "$tmp/ltsp/applets/"
     # Users can override things from /etc/ltsp
     if [ -d /etc/ltsp/initrd ]; then
         cp -a "/etc/ltsp/initrd/." "$tmp/"
     fi
     if [ -f /etc/ltsp/ltsp-client.conf ]; then
-        "$LTSP_DIR/applets/ltsp-initrd/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
+        "$_SRC_DIR/applets/ltsp-initrd/ini2sh.awk" </etc/ltsp/ltsp-client.conf \
             >"$tmp/ltsp/applets/ltsp/ltsp-client.sh"
     fi
     # Syntax check all the shell scripts

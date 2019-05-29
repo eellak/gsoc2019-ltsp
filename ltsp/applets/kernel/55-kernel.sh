@@ -1,4 +1,3 @@
-#!/bin/sh
 # This file is part of LTSP, https://ltsp.github.io
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -6,7 +5,7 @@
 cmdline() {
     local args
 
-    args=$(re getopt -n "$LTSP_APPLET" -o "hi:k:n:p:V" \
+    args=$(re getopt -n "$_APPLET" -o "hi:k:n:p:V" \
         -l "help,initrd:,kernel:,name:,partition:,version" -- "$@")
     re eval "set -- $args"
     while true; do
@@ -18,7 +17,7 @@ cmdline() {
             -p|--partition) shift; PARTITION=$1 ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$LTSP_APPLET: error in cmdline" ;;
+            *) die "$_APPLET: error in cmdline" ;;
         esac
         shift
     done

@@ -1,64 +1,58 @@
 ## NAME
-**ltsp** - entry point to LTSP applets
+**ltsp** - entry point to Linux Terminal Server Project applets
 
 ## SYNOPSIS
-**ltsp** [**-h**] [**-i=**_initrd_] [**-k=**_kernel_] [**-n=**_name_] [**-p=**_partition_] [_applet_] -- [_applet_options_]
+**ltsp** [**-h**] [**--version**] [_applet_] [_applet\_options_]
 
 ## DESCRIPTION
-Copy vmlinuz and initrd.img from an image or directory to TFTP.
-If _image_ is unspecified, process all of them.
-For simplicity, only directories (chroots) and raw images are supported,
-either full filesystems (ext4 etc) or full disks (VMs). They may be sparse
-to preserve space. Don't use a separate /boot nor LVM in disk images.
-The targets will always be named vmlinuz and initrd.img to simplify boot.ipxe.
+Run the specified LTSP _applet_ with _applet\_options_. The following applets
+are currently defined:
+
+  **  config**: configure certain parts of the LTSP server
+  **image**: generate a squashfs image from a chroot directory or VM image
+  **info**: gather support information about the LTSP installation
+  **initrd**: generate a squashfs image from a chroot directory or VM image
+  **kernel**: copy the kernel from a VM image to the TFTP directory
+  **swap**: generate and export a swap file via NBD
+
+To get help for each applet, use \`**ltsp-**_applet_ **--help**\` or
+\`**man** **ltsp-**_applet_\`.
+
+LTSP clients get the following applets instead; they should not be ran by
+the user, but they do have man pages that describe that boot phase and the
+relevant configuration parameters:
+
+  **  init**: after the initramfs; before /sbin/init
+  **login**: after login; before running the session; uid=user, not 0
+
+For convenience, it's possible to use symlinks to ltsp.sh in order to run
+applets, as long as the symlink name is **ltsp-**_applet_.
 
 ## OPTIONS
 **-h**, **--help**
   Display a help message.
 
-**-i**, **--initrd=**_path_
-  Specify the initrd path; try to autodetect if undefined.
-
-**-k**, **--kernel=**_path_
-  Specify the kernel path; try to autodetect if undefined.
-
-**-n**, **--name=**_name_
-  Specify the image _name_; otherwise it defaults to the (parent, for
-files) directory name; or to \`**uname -m**\` in the chrootless case.
-
-**-p**, **--partition=**_number_
-  _Image_ is a raw disk; the kernel/initrd is in partition _number_.
-
 **--version**
   Display the version information.
 
 ## FILES
-**/etc/ltsp/ltsp-kernel.conf**
-  Supports [_image_] sections that allow to specify **INITRD=** and **KERNEL=**
-directives on a per-image basis.
+**/etc/ltsp/ltsp.conf**: see **ltsp.conf**(5)
 
 ## ENVIRONMENT
 All the long options can also be specified as environment variables in
 UPPERCASE, for example:
 ```shell
-PARTITION=1 ltsp-kernel ...
+PARTITION=1 ltsp kernel ...
 ```
 
 ## EXAMPLES
 ```shell
-ltsp-kernel -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
+ltsp image -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
 ```
 
-## TODO
-Meh, a paragraph is needed before bullets can properly function. Anyway:
-
-* A lot of code will be shared between **ltsp-kernel**, **ltsp-image**
-  (nee **ltsp-update-image**) and **ltsp-chroot**; maybe put them in ltsp/.
-* **ltsp-chroot** will be needed for e.g. looking up the kernel name or
-  running a quick **apt full-upgrade**.
-
 ## COPYRIGHT
-Copyright 2019 the LTSP team, see https://github.com/ltsp/ltsp/graphs/contributors.
+Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp.conf**(5)
+**ltsp.conf**(5), **ltsp-config**(8), **ltsp-image**(8), **ltsp-info**(8),
+**ltsp-initrd**(8), **ltsp-kernel**(8), **ltsp-swap**(8)
