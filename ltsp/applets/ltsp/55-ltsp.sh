@@ -18,10 +18,15 @@
 
 # Distributions should replace "1.0" below at build time using `sed`
 _VERSION="1.0"
-LTSP_BASE="${LTSP_BASE:-/srv/ltsp}"
-LTSP_TFTP="${LTSP_TFTP:-/srv/ltsp}"
+BASE_DIR="${BASE_DIR:-/srv/ltsp}"
+IMAGE_DIR="${IMAGE_DIR:-/srv/ltsp/images}"
+NFS_DIR="${NFS_DIR:-/srv/ltsp}"
+TFTP_DIR="${TFTP_DIR:-/srv/ltsp}"
 
 ltsp_cmdline() {
+    local scripts
+
+    scripts="$1"; shift
     if [ "$_LTSP_APPLET" = "ltsp" ] && [ -z "$_SOURCED" ]; then
         while true; do
             case "$1" in
@@ -36,14 +41,13 @@ ltsp_cmdline() {
             esac
         done
     fi
-    test -d "$_SRC_DIR/applets/$_APPLET" ||
-        die "LTSP applet doesn't exist: $_APPLET"
-    # Normally run_main_functions below would call ltsp_main(), and the
-    # next source_applet would be there; but the LTSP_SCRIPTS variable can't
-    # stack, so run them serially, without providing an ltsp_main().
-    run_main_functions "$@"
-    test "$_LTSP_APPLET" = "ltsp" && return 0
-    source_applet "$_APPLET" "$@"
-    # All applets are required to have an entry function named applet_cmdline
-    test -n "$_SOURCED" || applet_cmdline "$@"
+    run_main_functions "$scripts" "$@"
+    # We could put the rest of the code below in an ltsp_main() function,
+    # but we want ltsp/scriptname_main()s to finish before any applet starts
+    test "$_LTSP_APPLET" != "ltsp" || return 0
+    scripts=$(list_applet_scripts "$_APPLET")
+    source_scripts "$scripts"
+    # All applets are required to have an entry function ${_APPLET}_cmdline
+    # that takes the list of the applets scripts as the first parameter
+    test -n "$_SOURCED" || ${_APPLET}_cmdline "$scripts" "$@"
 }

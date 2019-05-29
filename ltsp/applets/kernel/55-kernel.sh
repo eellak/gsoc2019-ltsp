@@ -2,31 +2,35 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-applet_cmdline() {
-    local args
+# Copy kernel from image to TFTP
 
-    args=$(re getopt -n "$_APPLET" -o "hi:k:n:p:V" \
+kernel_cmdline() {
+    local scripts args
+
+    scripts="$1"; shift
+    args=$(re getopt -n "$_LTSP_APPLET" -o "hi:k:n:p:V" \
         -l "help,initrd:,kernel:,name:,partition:,version" -- "$@")
-    re eval "set -- $args"
+    eval "set -- $args"
     while true; do
         case "$1" in
             -h|--help) applet_usage; exit 0 ;;
-            -i|--initrd) shift; INITRD=$1 ;;
-            -k|--kernel) shift; KERNEL=$1 ;;
-            -n|--name) shift; NAME=$1 ;;
-            -p|--partition) shift; PARTITION=$1 ;;
+            -i|--initrd) shift; INITRD="$1" ;;
+            -k|--kernel) shift; KERNEL="$1" ;;
+            -n|--name) shift; NAME="$1" ;;
+            -p|--partition) shift; PARTITION="$1" ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$_APPLET: error in cmdline" ;;
+            *) die "$_LTSP_APPLET: error in cmdline" ;;
         esac
         shift
     done
-    run_main_functions "$@"
+    run_main_functions "$scripts" "$@"
 }
 
 kernel_main() {
     local img loop tmp
 
+    die "OK this is kernel_main, time to die"
     tmp=$(re mktemp -d)
     trap_commands="rmdir $tmp"
     while read -r dir <&3; do

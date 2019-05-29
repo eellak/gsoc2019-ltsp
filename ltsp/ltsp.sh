@@ -5,9 +5,11 @@
 
 # Execution sequence:
 # This main() > source ltsp/* (and config/vendor overrides)
-# > ltsp_cmdline() > ltsp_scripts_main() > source applet/*
-# > applet_cmdline() > applet_scripts_main()
+# > ltsp_cmdline() > ltsp/scriptname_main()s > source applet/* (and overrides)
+# > applet_cmdline() > applet/scriptname_main()s
 main() {
+    local scripts
+
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
     # We use? TODO this quirk: `false && false; echo ok` ==> doesn't exit
     set -e
@@ -31,14 +33,16 @@ main() {
         _SRC_DIR=$(re readlink -f "$0")
         _SRC_DIR=${_SRC_DIR%/*}
         _LTSP_APPLET="${0##*/}"
+        _LTSP_APPLET="${_LTSP_APPLET%.sh}"
         if [ "$_LTSP_APPLET" = "ltsp" ]; then
             _APPLET=ltsp
         else
             _APPLET=${_LTSP_APPLET#ltsp-}
         fi
     fi
-    source_applet "ltsp" "$@"
-    ltsp_cmdline "$@"
+    scripts=$(list_applet_scripts "ltsp")
+    source_scripts "$scripts"
+    ltsp_cmdline "$scripts" "$@"
 }
 
 applet_usage() {
@@ -90,7 +94,7 @@ debug_shell() {
 # No need to pass a message if the failed command displays the error.
 die() {
     if [ $# -eq 0 ]; then
-        warn "Aborting ${_APPLET:-LTSP}"
+        warn "Aborting ${_LTSP_APPLET:-LTSP}"
     else
         warn "$@"
     fi
@@ -132,7 +136,7 @@ kernel_variables() {
     # and finally restore the spaces.
     # TODO: should we add quotes when they don't exist?
     # Note that it'll be hard when var=value" with "quotes" inside "it
-    rb eval "
+    eval "
 $(awk 'BEGIN { FS=""; }
     {
         s=$0   # source
@@ -300,20 +304,21 @@ rwr() {
 
 # Run all the main_script() functions we already sourced
 run_main_functions() {
-    local script
+    local scripts script
 
-    # 55-ltsp-initrd.sh should be called as: main_ltsp_initrd
+    scripts="$1"; shift
+    # 55-initrd.sh should be called as: initrd_main
     # <&3 is to allow scripts to use stdin instead of using the HEREDOC
     while read -r script <&3; do
-        is_command "main_$script" || continue
+        is_command "${script}_main" || continue
         case ",$LTSP_SKIP_SCRIPTS," in
             *",$script,"*) debug "Skipping main of script: $script" ;;
             *)  debug "Running main of script: $script"
-                "main_$script" "$@"
+                "${script}_main" "$@"
                 ;;
         esac
     done 3<<EOF
-$(echo "$LTSP_SCRIPTS" | sed -e 's/.*\///' -e 's/[^[:alpha:]]*\([^.]*\).*/\1/g' -e 's/[^[:alnum:]]/_/g')
+$(echo "$scripts" | sed -e 's/.*\///' -e 's/[^[:alpha:]]*\([^.]*\).*/\1/g' -e 's/[^[:alnum:]]/_/g')
 EOF
 }
 
@@ -335,7 +340,7 @@ fi
 # The first column is an increasing directory index.
 # Then sort them in reverse order, and finally by file name,
 # so that "--unique" keeps the last occurrence.
-# TODO: use sort -V, version, somewhere, to allow script~before
+# TODO: find can be replaced with `for x in $glob`, if needed for dracut
 run_parts_list() {
     local param1 param2 tab i d f
 
@@ -364,26 +369,33 @@ run_parts_list() {
     | sed 's@[^\t]*\t[^\t]*\t@@'
 }
 
-source_applet() {
+list_applet_scripts() {
     local applet script
 
     applet=$1
     shift
     # One of the dirs must exist
     if [ ! -d "$_SRC_DIR/applets/$applet" ] && [ ! -d "/run/ltsp/applets/$applet" ]; then
-        die "Not a directory: $_SRC_DIR/applets/$applet"
+        die "LTSP applet doesn't exist: $_SRC_DIR/applets/$applet"
     fi
     # https://www.freedesktop.org/software/systemd/man/systemd.unit.html
     # Drop-in files in /etc take precedence over those in /run
     # which in turn take precedence over those in /usr.
-    LTSP_SCRIPTS=$(run_parts_list "$_SRC_DIR/applets/$applet" \
+    test -f "/etc/ltsp/$applet.conf" && echo "/etc/ltsp/$applet.conf"
+    run_parts_list "$_SRC_DIR/applets/$applet" \
     "/run/ltsp/applets/$applet" \
-    "/etc/ltsp/applets/$applet")
+    "/etc/ltsp/applets/$applet"
+}
+
+source_scripts() {
+    local scripts script
+
+    scripts=$1
     while read -r script <&3; do
         debug "Sourcing: $script"
         . "$script"
     done 3<<EOF
-$LTSP_SCRIPTS
+$scripts
 EOF
 }
 

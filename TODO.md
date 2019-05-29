@@ -1,7 +1,5 @@
 # Currently working on
 * Implement ltsp-kernels, ltsp-initrd
-* Move away from 55-num to hooks:
-  rw run_hook hook_function "$@"
 * Implement init-ltsp.d as an applet
 * Move the current ltsp code there
 * See casper scripts, e.g. disabling snapd updates
@@ -38,10 +36,11 @@ Btw: `md5sum /sys/firmware/dmi/tables/DMI`
 
 
 # Various TODO notes
+* pam_exec can read the password; so we can use it for sshfs after login
+* maybe set IFS to something else, and use for instead of whiles?
 * use "nocache" for ltsp-update-image, see /etc/cron.daily/mlocate
 * and private mounts
 * systemd.conf files use TitleCase=yes, should we do that for lts.conf?
   Maybe it's a good compromise, to have these in the environment for quick
   things like `env | grep TitleCase.*= >> file`, and then to remove all
   TitleCase vars before spawning shell sessions etc.
-
