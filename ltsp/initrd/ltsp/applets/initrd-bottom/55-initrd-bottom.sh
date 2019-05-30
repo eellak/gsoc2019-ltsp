@@ -2,33 +2,24 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Sourced by LTSP initramfs scripts
+# Make root writable using a tmpfs overlay and install ltsp-init
 
-# Source the ltsp.sh functions without any applets
-LTSP_MAIN=true . /ltsp/ltsp.sh
+initrd_bottom_cmdline() {
+    local scripts
 
-if [ -f /scripts/functions ]; then
-    # Running on initramfs-tools
-    rb . /scripts/functions
-else
-    # Running on dracut
-    rootmnt=/sysroot
-    # TODO: check which other variables we need, e.g. ROOT, netroot...
-fi
-
-# This hook is supposed to run after networking is configured and before root
-# is mounted. Currently it's unused, but it may help if we ever want to:
-#  * Repair wrong networking when proxyDHCP is used, and:
-#    - Syslinux with IPAPPEND 2, or
-#    - Grub with local kernel and remote server
-#  * Possibly source ltsp-client.sh for $SERVER etc
-#  * Patch NBD
-main_ltsp_premount() {
-    true
+    scripts="$1"; shift
+    if [ -f /scripts/functions ]; then
+        # Running on initramfs-tools
+        rb . /scripts/functions
+    else
+        # Running on dracut
+        rootmnt=/sysroot
+        # TODO: check which other variables we need, e.g. ROOT, netroot...
+    fi
+    run_main_functions "$scripts" "$@"
 }
 
-# Make root writable using a tmpfs overlay and override init
-main_ltsp_bottom() {
+initrd_bottom_main() {
     local loop
 
     warn "Running $0"

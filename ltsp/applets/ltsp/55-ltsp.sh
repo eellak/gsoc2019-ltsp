@@ -24,7 +24,7 @@ NFS_DIR="${NFS_DIR:-/srv/ltsp}"
 TFTP_DIR="${TFTP_DIR:-/srv/ltsp}"
 
 ltsp_cmdline() {
-    local scripts
+    local scripts applet_cmdline
 
     scripts="$1"; shift
     if [ "$_LTSP_APPLET" = "ltsp" ] && [ -z "$_SOURCED" ]; then
@@ -49,5 +49,6 @@ ltsp_cmdline() {
     source_scripts "$scripts"
     # All applets are required to have an entry function ${_APPLET}_cmdline
     # that takes the list of the applets scripts as the first parameter
-    test -n "$_SOURCED" || ${_APPLET}_cmdline "$scripts" "$@"
+    applet_cmdline=$(echo "${_APPLET}_cmdline" | sed 's/[^[:alnum:]]/_/g')
+    test -n "$_SOURCED" || "$applet_cmdline" "$scripts" "$@"
 }

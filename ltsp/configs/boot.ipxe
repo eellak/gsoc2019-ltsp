@@ -24,7 +24,7 @@ goto start
 
 :52:54:00:25:e3:37
 set hostname fatso
-set img x86_32
+set img vbox_vm
 goto start
 
 :3c:07:71:a2:02:e3
@@ -68,7 +68,7 @@ goto ${img}
 # fat fedora30 gentoo jessie-mate stretch-mate-sch tara-cinnamon xenial-mate-sch
 :vbox_vm
 set img bionic-mate-sch32
-set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} vga!=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ip=${ip}:${srv}:${gateway}:${netmask} break!=bottom # ltsp.loop=ubuntu-mate-18.04.1-desktop-i386.iso,casper/filesystem.squashfs
+set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} vga!=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ip=${ip}:${srv}:${gateway}:${netmask} break=bottom # ltsp.loop=ubuntu-mate-18.04.1-desktop-i386.iso,casper/filesystem.squashfs
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img
@@ -85,9 +85,7 @@ goto linux_via_ipxe
 # In EFI mode, iPXE requires initrds to be specified in the cmdline.
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
-# ltsp-empty will be ltsp.img in the end; currently I'm using linux_via_*
-# for testing legacy ltsp installations though
-initrd --name ltsp.img /ltsp/ltsp-empty.img
+initrd /ltsp/ltsp.img
 boot || goto failed
 
 :linux_via_grub
@@ -98,7 +96,7 @@ boot || goto failed
 set net0/dhcp-server ${srv}
 set net0/next-server ${srv}
 set net0/root-path /ltsp/${img}/vmlinuz ${cmdline}
-set net0/filename /ltsp/${img}/initrd.img /ltsp/ltsp-empty.img
+set net0/filename /ltsp/${img}/initrd.img /ltsp/ltsp.img
 kernel /grub/grubnetx64.efi.signed
 boot || goto failed
 
@@ -118,9 +116,9 @@ initrd /images/cdrom/casper/initrd && set initrd initrd && goto livecd_kernel ||
 initrd /images/cdrom/casper/initrd.lz && set initrd initrd.lz && goto livecd_kernel ||
 initrd /images/cdrom/casper/initrd.gz && set initrd initrd.gz && goto livecd_kernel || goto failed
 :livecd_kernel  # TODO: it might be xubuntu.seed etc
-kernel /images/cdrom/casper/vmlinuz initrd=${initrd} initrd=initrd-1755863.img boot=casper netboot=nfs nfsroot=10.161.254.11:/cdrom ${seedparam} -- debian-installer/language=el keyboard-configuration/layoutcode?=gr
+kernel /images/cdrom/casper/vmlinuz initrd=${initrd} initrd=ltsp.img boot=casper netboot=nfs nfsroot=10.161.254.11:/cdrom ${seedparam} -- debian-installer/language=el keyboard-configuration/layoutcode?=gr
 #systemd.mask=tmp.mount
-initrd /ltsp/initrd-1755863.img
+initrd /ltsp/ltsp.img
 boot || goto failed
 
 :netinst  # http://archive.ubuntu.com/ubuntu/dists/devel/main/installer-i386/current/images/netboot/ubuntu-installer/i386/boot-screens/txt.cfg
