@@ -67,8 +67,9 @@ goto ${img}
 # bionic-mate-sch32 bionic-mate-sch64 bionic-minimal bionic-ubuntu buster-gnome
 # fat fedora30 gentoo jessie-mate stretch-mate-sch tara-cinnamon xenial-mate-sch
 :vbox_vm
-set img bionic-mate-sch32
-set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} vga!=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 ip=${ip}:${srv}:${gateway}:${netmask} break=bottom # ltsp.loop=ubuntu-mate-18.04.1-desktop-i386.iso,casper/filesystem.squashfs
+set img buster-gnome
+set cmdline NFS ${cmdline_extra} BOOTIF=01-${mac:hexhyp} vga=0x343 root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} loop.max_part=9 break=bottom
+# set cmdline CDROM ${cmdline_extra} BOOTIF=01-${mac:hexhyp} root=/dev/nfs nfsroot=${srv}:/srv/ltsp/cd loop.max_part=9 ltsp.loop=ubuntu-mate-18.04.1-desktop-i386.iso,casper/filesystem.squashfs
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img
