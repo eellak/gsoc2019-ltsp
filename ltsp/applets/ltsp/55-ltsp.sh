@@ -30,7 +30,11 @@ ltsp_cmdline() {
     if [ "$_LTSP_APPLET" = "ltsp" ] && [ -z "$_SOURCED" ]; then
         while true; do
             case "$1" in
+                -b|--base-dir) BASE_DIR=$1; shift ;;
                 -h|--help|"") applet_usage; exit 0 ;;
+                -i|--image-dir) IMAGE_DIR=$1; shift ;;
+                -n|--nfs-dir) NFS_DIR=$1; shift ;;
+                -t|--tftp-dir) TFTP_DIR=$1; shift ;;
                 -V|--version) applet_version; exit 0 ;;
                 -*) die "Unknown option: $1" ;;
                 *)  _APPLET="$1"

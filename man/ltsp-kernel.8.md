@@ -1,8 +1,8 @@
 ## NAME
-**ltsp-kernel** - copy kernel from image to TFTP
+**ltsp kernel** - copy kernel from image to TFTP
 
 ## SYNOPSIS
-**ltsp-kernel** [**-h**] [**-i=**_initrd_] [**-k=**_kernel_] [**-n=**_name_] [**-p=**_partition_] [_image_] ...
+**ltsp kernel** [**-h**] [**-i=**_initrd_] [**-k=**_kernel_] [**-n=**_name_] [**-p=**_partition_] [-V] [_image_] ...
 
 ## DESCRIPTION
 Copy vmlinuz and initrd.img from an image or directory to TFTP.
@@ -33,9 +33,9 @@ files) directory name; or to \`**uname -m**\` in the chrootless case.
   Display the version information.
 
 ## FILES
-**/etc/ltsp/ltsp-kernel.conf**
-  Supports [_image_] sections that allow to specify **INITRD=** and **KERNEL=**
-directives on a per-image basis.
+**/etc/ltsp/kernel.conf**
+  **INITRD=** and **KERNEL=** directives can be specified for all images
+centrally or on a per-image basis under [_image_] sections.
 
 ## ENVIRONMENT
 All the long options can also be specified as environment variables in
@@ -48,17 +48,3 @@ PARTITION=1 ltsp-kernel ...
 ```shell
 ltsp-kernel -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
 ```
-
-## TODO
-Meh, a paragraph is needed before bullets can properly function. Anyway:
-
-* A lot of code will be shared between **ltsp-kernel**, **ltsp-image**
-  (nee **ltsp-update-image**) and **ltsp-chroot**; maybe put them in ltsp/.
-* **ltsp-chroot** will be needed for e.g. looking up the kernel name or
-  running a quick **apt full-upgrade**.
-
-## COPYRIGHT
-Copyright 2019 the LTSP team, see AUTHORS
-
-## SEE ALSO
-**ltsp**(8), **ltsp.conf**(5)

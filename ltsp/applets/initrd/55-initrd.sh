@@ -27,7 +27,7 @@ initrd_main() {
     local tmp script
 
     # It's simpler to copy everything into a temp dir before calling cpio
-    tmp=$(mktemp -d)
+    tmp=$(re mktemp -d)
     re cp -a "$_SRC_DIR/initrd/." "$tmp/"
     re cp -a "$_SRC_DIR/ltsp.sh" "$tmp/ltsp/"
     re mkdir -p "$tmp/ltsp/applets/"
@@ -57,5 +57,5 @@ EOF
     re mv "$tmp/ltsp.img" "$TFTP_DIR/ltsp/"
     re rm -r "$tmp"
     echo "Generated ltsp.img:"
-    ls -l "$TFTP_DIR/ltsp/ltsp.img"
+    re ls -l "$TFTP_DIR/ltsp/ltsp.img"
 }
