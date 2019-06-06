@@ -98,6 +98,8 @@ die() {
     else
         warn "$@"
     fi
+    # This notifies at_exit() to execute TERM_COMMANDS
+    _DIED=1
     # If called from subshells, this just exits the subshell
     # With `set -e` though, it'll still exit on commands like x=$(false)
     exit 1
@@ -107,6 +109,42 @@ die() {
 # But do offer a simple wrapper to avoid "%s\n" all the time.
 echo() {
     printf "%s\n" "$*"
+}
+
+# On abnormal termination, we run both the term and exit commands.
+# On normal termination, we only run the exit commands.
+# For example, in initrd-bottom we don't want to unmount on normal exit.
+at_exit() {
+    # Don't stop on errors for the exit commands
+    set +e
+    # Stop trapping
+    trap - 0 HUP INT QUIT SEGV PIPE TERM
+    if [ "$1" = "-TERM" ] || [ "$_DIED" = "1" ]; then
+        eval "$_TERM_COMMANDS"
+    fi
+    eval "$_EXIT_COMMANDS"
+    # It's possible to manually call at_exit, run the commands, then
+    # call exit_command again (e.g. `ltsp kernel img1 img2`).
+    unset _TERM_COMMANDS
+    unset _EXIT_COMMANDS
+    unset _HAVE_TRAP
+    set -e
+}
+
+# You may use `at_exit "rw command"`, but not `at_exit "re command"`
+exit_command() {
+    if [ "$_HAVE_TRAP" != "1" ]; then
+        _HAVE_TRAP=1
+        trap "at_exit -TERM" HUP INT QUIT SEGV PIPE TERM
+        trap "at_exit -EXIT" EXIT
+    fi
+    if [ "$_APPLET" = "initrd-bottom" ]; then
+        _TERM_COMMANDS="$*
+$_TERM_COMMANDS"
+    else
+        _EXIT_COMMANDS="$*
+$_EXIT_COMMANDS"
+    fi
 }
 
 # Check if parameter is a command; `command -v` isn't allowed by POSIX
@@ -168,83 +206,6 @@ $(awk 'BEGIN { FS=""; }
     ' < /proc/cmdline)"
 }
 
-# Autodetect a source directory type and mount it to a target dir
-mount_dir() {
-    local src dst loopfile
-
-    src="$1"
-    dst="$2"
-    rb test -d "$src"
-    rb test -d "$dst"
-    if can_chroot "$src"; then
-        test "$src" = "$dst" && return 0
-        die "TODO: if src!=dst, we're called outside of initramfs,
-and we need to recursively mount subdirs etc"
-    fi
-    # Here it's a raw partition/disk file etc so it needs the loop module.
-    # In Ubuntu loop is built-in and /proc/cmdline needs: loop.max_part=9
-    rb modprobe loop max_part=9
-    # TODO: use partprobe if called outside of initramfs
-    # Try the files that are larger than initrds, e.g. 100M+
-    while read -r loopfile <&3; do
-        warn "Trying $loopfile"
-        if mount_file "$loopfile" "$dst"; then
-            can_chroot "$dst" && return 0
-        else
-            rb umount "$dst"
-        fi
-    done 3<<EOF
-$(find "$src" -maxdepth 1 -type f -size +100000k | sort)
-EOF
-    return 1
-}
-
-# Try to loop mount a raw partition/disk file in a target dir
-mount_file() {
-    local src dst TYPE PTTYPE noload
-
-    src="$1"
-    dst="$2"
-    test -e "$src" || return 1
-    rb test -d "$dst"
-    unset TYPE PTTYPE
-    # Use a subshell to avoid polluting the real environment.
-    # Reminder: `return` exits from the subshell, not the function.
-    (
-        vars=$(blkid -o export "$src" 2>/dev/null) || return $?
-        test -n "$vars" || return $?
-        eval "$vars"
-        if [ -n "$TYPE" ]; then  # A partition
-            case "$TYPE" in
-                ext*)  noload=",noload" ;;
-                *)     unset noload ;;
-            esac
-            if mount -t "$TYPE" -o ro$noload "$src" "$dst"; then
-                # NO_PROC may be set in the environment by main_ltsp_bottom.
-                # In ltsp.loop=xxx, /proc may exist in a subsequent mount.
-                test -n "$NO_PROC" && return 0
-                if [ -d "$dst/proc" ]; then
-                    return 0
-                else
-                    warn "No /proc found in $src"
-                    rb umount "$dst"
-                fi
-            else
-                return $?
-            fi
-        elif [ -n "$PTTYPE" ]; then  # A partition table
-            loopdev=$(rb losetup -f)
-            rb losetup "$loopdev" "$src"
-            for looppart in "$loopdev"p*; do
-                warn "Trying to loop-mount $looppart"
-                mount_file "$looppart" "$dst" && return 0
-            done
-            rb losetup -d "$loopdev"
-        fi
-        return 1
-    ) || return $?
-}
-
 # Run a command. Block if it failed.
 # Temporarily give a shell; replace it with "repeat y/n" in the final product;
 # also check for batch mode (no tty) and die if so.
@@ -283,6 +244,7 @@ rw() {
 rwr() {
     local want got
 
+    # TODO: remove: echo "rwr $*" >&2
     if [ "$1" = "!" ]; then
         want=1
         shift

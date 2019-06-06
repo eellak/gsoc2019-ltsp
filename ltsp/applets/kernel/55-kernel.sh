@@ -28,47 +28,45 @@ kernel_cmdline() {
 }
 
 kernel_main() {
-    local img loop tmp
+    local tmp img_cmd img img_name tmp
 
-    die "OK this is kernel_main, time to die"
-    tmp=$(re mktemp -d)
-    trap_commands="rmdir $tmp"
-    while read -r dir <&3; do
-        if [ ! -d "$dir" ]; then
-            true
+    while read -r img_cmd <&3; do
+        tmp=$(re mktemp -d)
+        exit_command "rw rmdir '$tmp'"
+        # tmp has mode=0700; use a subdir to hide the mount from users
+        re mkdir -p "$tmp/ltsp"
+        exit_command "rw rmdir '$tmp/ltsp'"
+        tmp=$tmp/ltsp
+        img=${img_cmd%%,*}
+        if [ "$img" = "/" ]; then  # Chrootless
+            img_name=$(re uname -m)
+        else  # Keep the last dir name, not the file name
+            img_name=$(re readlink -f "$img")
+            img_name=${img%/*}
+            img_name=${img_name##*/}
         fi
-        # Now img is a dir
-        partprobe "$dev" 2>/dev/null
-        # 83 Linux=MBR, Linux filesystem=GPT, 17 Hidden HPFS/NTFS=iso, 0 Empty=iso
-        devp=$(sfdisk -l "$dev" | awk \
-            '/83 Linux|Linux filesystem|17 Hidden HPFS|0 Empty/ { print $1; exit }')
-        # If it doesn't have partitions, maybe it's an old .iso or a partition
-        devp=${devp:-$dev}
-        # printf "Device/partition=%s\n" "$devp"
-        if [ -n "$devp" ] && mount -o loop,ro "$devp" /mnt; then
-            # Keep the image name
-            imgn=${img##*/}
-            imgn=${imgn%.*}
-            imgn=${imgn%-flat}
-            devn=${dev##*/}
-            mkdir -p "/srv/ltsp/ltsp/$imgn"
-            read vmlinuz initrd <<EOF
-$(search_kernel /mnt | head -n 1)
+        # TODO: document to avoid `re test -n`, for easier debugging
+        re test "img_name$img_name" != "img_name"
+        re mount_list "$img_cmd" "$tmp"
+        re mkdir -p "$TFTP_DIR/ltsp/$img_name/"
+        read -r vmlinuz initrd <<EOF
+$(search_kernel "$tmp" | head -n 1)
 EOF
-            if [ -n "$vmlinuz" ] && [ -n "$initrd" ]; then
-                # ls -l --color "$vmlinuz" "$initrd"
-                install -v -m 644 "$vmlinuz" "/srv/ltsp/ltsp/$imgn/vmlinuz"
-                install -v -m 644 "$initrd" "/srv/ltsp/ltsp/$imgn/initrd.img"
-            fi
-            # read -p "Press enter to unmount everything: " dummy
-            umount /mnt
+        if [ -n "$vmlinuz" ] && [ -n "$initrd" ]; then
+            # ls -l --color "$vmlinuz" "$initrd"
+            install -v -m 644 "$vmlinuz" "$TFTP_DIR/ltsp/$img_name/vmlinuz"
+            install -v -m 644 "$initrd" "$TFTP_DIR/ltsp/$img_name/initrd.img"
+        else
+            warn "Could not locate vmlinuz and initrd.img in $img_cmd"
         fi
+        # Unmount everything and continue with the next image
+        at_exit -EXIT
     done 3<<EOF
 $(list_images "$@")
 EOF
-    unset trap_commands
 }
 
+# Search for the kernel and initrd inside $dir
 search_kernel() {
     local dir vglob ireg vmlinuz initrd
 
@@ -97,6 +95,8 @@ search_kernel() {
 # Column 1: the kernel file name, including wildcards.
 # Column 2: sed regex to calculate the initrd file name from the kernel.
 # Column 3: comment.
+# openSUSE-Tumbleweed-GNOME-Live-x86_64-Current.iso
+    boot/*/loader/linux s|linux|initrd|
 # Ubuntu 18 live CDs:
     casper/vmlinuz s|vmlinuz|initrd|
 # Ubuntu 10, 12, 14, LinuxMint 19, Xubuntu 18:

@@ -27,7 +27,7 @@ initrd_bottom_main() {
     img=${nfsroot##*/}
     if [ -n "$LTSP_LOOP" ]; then
         while read -r loop<&3; do
-            NO_PROC=1 rb mount_file "$rootmnt/${loop#/}" "$rootmnt"
+            _NO_PROC=1 rb mount_file "$rootmnt/${loop#/}" "$rootmnt"
         done 3<<EOF
 $(echo "$LTSP_LOOP" | tr "," "\n")
 EOF

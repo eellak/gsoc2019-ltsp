@@ -19,8 +19,7 @@
 # Distributions should replace "1.0" below at build time using `sed`
 _VERSION="1.0"
 BASE_DIR="${BASE_DIR:-/srv/ltsp}"
-IMAGE_DIR="${IMAGE_DIR:-/srv/ltsp/images}"
-NFS_DIR="${NFS_DIR:-/srv/ltsp}"
+EXPORT_DIR="${EXPORT_DIR:-/srv/ltsp}"
 TFTP_DIR="${TFTP_DIR:-/srv/ltsp}"
 
 ltsp_cmdline() {
@@ -31,9 +30,8 @@ ltsp_cmdline() {
         while true; do
             case "$1" in
                 -b|--base-dir) BASE_DIR=$1; shift ;;
+                -e|--export-dir) EXPORT_DIR=$1; shift ;;
                 -h|--help|"") applet_usage; exit 0 ;;
-                -i|--image-dir) IMAGE_DIR=$1; shift ;;
-                -n|--nfs-dir) NFS_DIR=$1; shift ;;
                 -t|--tftp-dir) TFTP_DIR=$1; shift ;;
                 -V|--version) applet_version; exit 0 ;;
                 -*) die "Unknown option: $1" ;;

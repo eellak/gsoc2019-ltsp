@@ -35,14 +35,11 @@ LTSP by default places everything under _/srv/ltsp_, but that can be configured 
 **-b**, **--base-dir=**_/srv/ltsp_
   This is where the chroots or VMs are; so when you run `ltsp image x86_64`, it will search for a directory named **/srv/ltsp/x86_64**; otherwise you'd need to provide the full path, for example `ltsp image /home/username/VMs/x86_64`.
 
+**-e**, **--export-dir=**_/srv/ltsp_
+  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $EXPORT_DIR/$image/ltsp.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
+
 **-h**, **--help**
   Display a help message.
-
-**-i**, **--image-dir=**_/srv/ltsp/images_
-  This is where the squashfs files will be generated when running `ltsp image`. The rightmost directory is also used in the kernel command line: **nfsroot=/srv/ltsp ltsp.loop=images/x86_64.img**.
-
-**-n**, **--nfs-dir=**_/srv/ltsp_
-  This is used by `ltsp config nfs`, to generate an appropriate /etc/exports, in `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**, and in `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
 
 **-o**, **--overwrite**
   Overwrite all existing files. Usually applets refuse to overwrite configuration files that may have been modified by the user, like boot.ipxe.
@@ -56,6 +53,23 @@ ANSWER: yes, otherwise it's a lot less flexible, e.g. if we put TFTP_DIR=/srv/lt
 
 **-V**, **--version**
   Display the version information.
+
+## SPECIFYING IMAGES
+Some of the applets, like `ltsp kernel`, require one or more images. The following rules apply:
+  * Image sources may be specified as absolute paths, e.g. `ltsp image -c /`.
+  * A target name may be specified using NAME=_name_. If source is "/", it defaults to `uname -m`.
+  * Images may be specified as paths relative to $BASE_DIR, e.g. `ltsp kernel x86_64 EOL/precise-ubuntu ./images/x86_32.img`.
+  * If the source is a file, it's loop-mounted. A PARTITION=_partition_ may be specified, otherwise the first non-fat one is used, to skip the EFI partition.
+  * For files, the name of the image comes from the parent directory, so bionic-mate/bionic-mate-flat.vmdk would result in images/bionic-mate.img.
+  * Unless the parent directory is called "images", in which case the file name is preferred. So `ltsp kernel images/x86_64.img` would update the correct directory.
+  * If the source is a directory:
+    - If it contains /proc, it's bind-mounted to the target.
+    - A LOOP=_loop_ parameter can specify a file inside the directory, for example:
+    `ltsp kernel --loop=../cd/ubuntu-mate-18.04.1-desktop-amd64.iso,iso9660,loop,ro:casper/filesystem.squashfs,squashfs,loop,ro bionic-mate-sch32`
+      I.e. the syntax is "source1,fstype1,options1:source2,fstype2,options2:...".
+    - Otherwise the directory is searched for files >100MB, and the first one is tried; unless the directory is called "images".
+
+Those are many rules; but they do allow for easy commands in many use cases.
 
 ## FILES
 **/etc/ltsp/ltsp.conf**
