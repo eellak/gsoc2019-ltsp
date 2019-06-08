@@ -76,17 +76,30 @@ debug() {
 }
 
 debug_shell() {
-    ( umask 0077; set > /tmp/ltsp-env-$$ )
-    warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
+    local setsid
+
     # TODO: make this "repeat y/n" for security reasons, unless some
     # cmdline parameter is set. Also, check if stdin is valid (| pipe).
-    if is_command panic; then
-        # In initramfs-tools; panic stops splash, gets a console etc
-        panic
-    elif is_command bash; then
-        bash
+    ( umask 0077; set > /tmp/ltsp-env )
+    warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
+    # Debian defaults to SPLASH="true" and only disables it when
+    # nosplash*|plymouth.enable=0 is passed in the cmdline
+    if [ "$_APPLET" = "initrd-bottom" ] || [ "$_APPLET" = "init" ]; then
+        if [ -x /bin/plymouth ] && pidof plymouthd >/dev/null; then
+            warn "Stopping plymouth"
+            rw plymouth quit
+        fi
+    fi
+    # Use `setsid -c` to enable job control in the shell
+    if is_command setsid; then
+        setsid="setsid -c"
     else
-        sh
+        unset setsid
+    fi
+    if is_command bash; then
+        $setsid bash
+    else
+        $setsid sh
     fi
 }
 
@@ -97,6 +110,9 @@ die() {
         warn "Aborting ${_LTSP_APPLET:-LTSP}"
     else
         warn "$@"
+    fi
+    if [ "$_APPLET" = "initrd-bottom" ] || [ "$_APPLET" = "init" ]; then
+        debug_shell
     fi
     # This notifies at_exit() to execute TERM_COMMANDS
     _DIED=1
@@ -206,15 +222,6 @@ $(awk 'BEGIN { FS=""; }
     ' < /proc/cmdline)"
 }
 
-# Run a command. Block if it failed.
-# Temporarily give a shell; replace it with "repeat y/n" in the final product;
-# also check for batch mode (no tty) and die if so.
-rb() {
-    while ! rwr "$@"; do
-        debug_shell "Type 'exit 0' to retry, or 'exit 1' to terminate" || die
-    done
-}
-
 # Run a command. Exit if it failed.
 re() {
     rwr "$@" || die
@@ -239,8 +246,6 @@ rw() {
 # Run a command. Warn if it failed. Return $?.
 # Don't warn if $RWR_SILENCE is set, to easily implement rs() and rsr().
 # Used like `rwr cmd1 || cmd2`.
-# Note that in ltsp-client, we frequently use the rb() function in order to
-# block if something failed, while in ltsp-server re() is more suitable.
 rwr() {
     local want got
 

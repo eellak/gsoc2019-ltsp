@@ -64,16 +64,17 @@ set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} root=/dev/nbd0p1 nbdroot=${
 goto ${img}
 
 # While developing, I'm setting img and cmdline here; img can be:
-# bionic-mate-sch32 bionic-mate-sch64 bionic-minimal bionic-ubuntu buster-gnome
-# fat fedora30 gentoo jessie-mate stretch-mate-sch tara-cinnamon xenial-mate-sch
+# bionic-mate-sch32(14) bionic-mate-sch64(19) bionic-minimal(14) bionic-nfs(14)
+# bionic-ubuntu(+19) buster-gnome(-24) fedora30 gentoo jessie-mate(+142!/27)
+# stretch-mate-sch(+13) tara-cinnamon(-20) xenial-mate-sch(-9)
 :vbox_vm
-set img buster-gnome
+set img xenial-mate-sch
 # nfs_simple autodetects chroot/squashfs/vbox
 set nfs_simple root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img}
 set nfs_image root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} ltsp.image=ltsp.img
 set nfs_vbox root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} ltsp.image=${img}-flat.vmdk
 set nfs_ubuntu_iso root=/dev/nfs nfsroot=${srv}:/srv/ltsp/cd ltsp.image=ubuntu-mate-18.04.1-desktop-i386.iso,,casper/filesystem.squashfs
-set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} ${nfs_vbox} loop.max_part=9 vga=0x343 break=bottom
+set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} ${nfs_simple} loop.max_part=9 vga=0x343 break!=init
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img

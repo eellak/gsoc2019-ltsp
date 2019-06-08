@@ -10,7 +10,7 @@ initrd_bottom_cmdline() {
     scripts="$1"; shift
     if [ -f /scripts/functions ]; then
         # Running on initramfs-tools
-        rb . /scripts/functions
+        re . /scripts/functions
     else
         # Running on dracut
         rootmnt=/sysroot
@@ -25,18 +25,26 @@ initrd_bottom_main() {
     warn "Running $0"
     kernel_variables
     img=${nfsroot##*/}
-    if [ -n "$LTSP_LOOP" ]; then
-        while read -r loop<&3; do
-            _NO_PROC=1 rb mount_file "$rootmnt/${loop#/}" "$rootmnt"
-        done 3<<EOF
-$(echo "$LTSP_LOOP" | tr "," "\n")
-EOF
+    if [ -n "$LTSP_IMAGE" ]; then
+        if [ "${LTSP_IMAGE#/}" = "$LTSP_IMAGE" ]; then
+            # If it doesn't start with slash, it's relative to $rootmnt
+            LTSP_IMAGE="$rootmnt/$LTSP_IMAGE"
+        fi
+    # Quick autodetection
+    elif [ -d "$rootmnt/proc" ]; then
+        # No need to call mount_list
+        true
+    elif [ -e "$rootmnt/ltsp.img" ]; then
+        LTSP_IMAGE="$rootmnt/ltsp.img"
+    elif [ -e "$rootmnt/$img-flat.vmdk" ]; then
+        LTSP_IMAGE="$rootmnt/$img-flat.vmdk"
     else
-        rb mount_dir "$rootmnt" "$rootmnt"
+        die "$rootmnt/proc doesn't exist and ltsp.image wasn't specified"
     fi
-    is_writeable "$rootmnt" || rb overlay_root
-    rb override_init
-    mount | grep -w dev || echo ========NODEV========
+    test -n "$LTSP_IMAGE" && re mount_list "$LTSP_IMAGE" "$rootmnt"
+    test -d "$rootmnt/proc" || die "$rootmnt/proc doesn't exist in initrd-bottom"
+    test "$LTSP_OVERLAY" = "0" || re overlay_root
+    re override_init
 }
 
 
@@ -51,18 +59,21 @@ is_writeable() {
 }
 
 modprobe_overlay() {
+    local overlayko
+
     grep -q overlay /proc/filesystems &&
         return 0
     modprobe overlay &&
         grep -q overlay /proc/filesystems &&
         return 0
-    if [ -f "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" ]; then
-        rb mv /lib/modules /lib/modules.real
-        rb ln -s "$rootmnt/lib/modules" /lib/modules
-        rb modprobe overlay
-        rb rm /lib/modules
-        rb mv /lib/modules.real /lib/modules
-        grep -q overlay /proc/filesystems &&
+    overlayko="$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko"
+    if [ -f "$overlayko" ]; then
+        # Do not `ln -s "$rootmnt/lib/modules" /lib/modules`
+        # In that case, /root is in use after modprobe
+        warn "Loading overlay module from real root" >&2
+        # insmod is availabe in Debian initramfs but not in Ubuntu
+        "$rootmnt/sbin/insmod" "$overlayko" &&
+            grep -q overlay /proc/filesystems &&
             return 0
     fi
     return 1
@@ -74,31 +85,31 @@ override_init() {
     # In some cases we could create a symlink to /run/ltsp/ltsp.sh,
     # but it doesn't work in all initramfs-tools versions.
     # So let's be safe and use plain cp.
-    rb mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"
+    re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"
     # I think init can't be just a symlink to ltsp.sh like the other applets,
     # because of initramfs init validation / broken symlink at that point.
     echo '#!/bin/sh
 exec /run/ltsp/ltsp.sh init "$@"' > "$rootmnt/sbin/init"
-    rb chmod +x "$rootmnt/sbin/init"
+    re chmod +x "$rootmnt/sbin/init"
     # Jessie needs a 3.18+ kernel and this initramfs-tools hack:
     if grep -qs jessie /etc/os-release; then
         echo "init=${init:-/sbin/init}" >> /scripts/init-bottom/ORDER
     fi
     # Move ltsp to /run to make it available after pivot_root.
     # But initramfs-tools mounts /run with noexec; so use a symlink.
-    rb mv /ltsp /run/initramfs/ltsp/
-    rb ln -s initramfs/ltsp/ltsp /run/ltsp
+    re mv /ltsp /run/initramfs/ltsp/
+    re ln -s initramfs/ltsp/ltsp /run/ltsp
 }
 
 overlay_root() {
-    rb modprobe_overlay
-    rb mkdir -p /run/initramfs/ltsp
-    rb mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/ltsp
-    rb mkdir -p /run/initramfs/ltsp/up /run/initramfs/ltsp/work
-    rb mount -t overlay -o upperdir=/run/initramfs/ltsp/up,lowerdir=$rootmnt,workdir=/run/initramfs/ltsp/work overlay "$rootmnt"
+    re modprobe_overlay
+    re mkdir -p /run/initramfs/ltsp
+    re mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/ltsp
+    re mkdir -p /run/initramfs/ltsp/up /run/initramfs/ltsp/work
+    re mount -t overlay -o upperdir=/run/initramfs/ltsp/up,lowerdir=$rootmnt,workdir=/run/initramfs/ltsp/work overlay "$rootmnt"
     # Seen on 20190516 on stretch-mate-sch and bionic-minimal
     if run-init -n "$rootmnt" /sbin/init 2>&1 | grep -q console; then
         warn "$0 working around https://bugs.debian.org/811479"
-        rb mount --bind /dev "$rootmnt/dev"
+        re mount --bind /dev "$rootmnt/dev"
     fi
 }

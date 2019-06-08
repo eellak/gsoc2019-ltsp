@@ -2,7 +2,7 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Copy kernel from image to TFTP
+# Create a squashfs image from an image source
 
 kernel_cmdline() {
     local scripts args

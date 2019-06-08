@@ -20,14 +20,11 @@ The targets will always be named vmlinuz and initrd.img to simplify boot.ipxe.
   Specify the initrd path; try to autodetect if undefined.
 
 **-k**, **--kernel=**_path_
-  Specify the kernel path; try to autodetect if undefined.
+  Specify the kernel glob; try to autodetect if undefined.
 
 **-n**, **--name=**_name_
   Specify the image _name_; otherwise it defaults to the (parent, for
 files) directory name; or to \`**uname -m**\` in the chrootless case.
-
-**-p**, **--partition=**_number_
-  _Image_ is a raw disk; the kernel/initrd is in partition _number_.
 
 **--version**
   Display the version information.
@@ -41,10 +38,10 @@ centrally or on a per-image basis under [_image_] sections.
 All the long options can also be specified as environment variables in
 UPPERCASE, for example:
 ```shell
-PARTITION=1 ltsp-kernel ...
+KERNEL=/boot/vmlinuz ltsp kernel ...
 ```
 
 ## EXAMPLES
 ```shell
-ltsp-kernel -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
+ltsp kernel -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
 ```

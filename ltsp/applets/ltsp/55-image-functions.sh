@@ -138,8 +138,8 @@ mount_type() {
     # result=$(mount_type "$src") means we're already in a subshell,
     # no need to worry about namespace pollution
     src=$1
-    vars=$(re blkid -po export "$src" 2>/dev/null)
-    # blkid outputs invalid characters in e.g. APPLICATION_ID=, grep it
+    vars=$(re blkid -po export "$src")
+    # blkid outputs invalid characters in e.g. APPLICATION_ID=, grep it out
     eval "$(echo "$vars" | grep -E '^PART_ENTRY_TYPE=|^PTTYPE=|^TYPE=')"
     if [ -n "$PTTYPE" ] && [ -z "$TYPE" ]; then
         # "gpt" or "dos" (both for the main and the extended partition table)
@@ -173,7 +173,9 @@ mount_file() {
     if [ "$fstype" = "gpt" ]; then  # A partition table
         unset fstype
         loopdev=$(re losetup -f)
-        re losetup -r "$loopdev" "$src"
+        # Note, klibc losetup doesn't support -r (read only)
+        warn "Running: " losetup "$loopdev" "$src"
+        re losetup "$loopdev" "$src"
         exit_command "rw losetup -d '$loopdev'"
         test -f /scripts/functions || partprobe "$loopdev"
         loopparts="${loopdev}p${partition:-*}"
@@ -190,11 +192,41 @@ mount_file() {
         case "$fstype" in
             "")  continue ;;
             ext*)  options=${options:-ro,noload} ;;
-            iso9660)  options=${options:-ro} ;;
+            *)  options=${options:-ro} ;;
         esac
+        warn "Running: " mount -t "$fstype" ${options:+-o "$options"} "$image" "$dst"
         re mount -t "$fstype" ${options:+-o "$options"} "$image" "$dst"
         exit_command "rw umount '$dst'"
         return 0
     done
     die "I don't know how to mount $src"
+}
+
+modprobe_overlay2() {
+    grep -q overlay /proc/filesystems &&
+        return 0
+    modprobe overlay &&
+        grep -q overlay /proc/filesystems &&
+        return 0
+    if [ -n "$rootmnt" ] &&
+        [ -f "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" ]
+    then
+        echo "Loading overlay module from real root" >&2
+        re mv /lib/modules /lib/modules.real
+        re ln -s "$rootmnt/lib/modules" /lib/modules
+        re modprobe overlay
+        re rm /lib/modules
+        re mv /lib/modules.real /lib/modules
+        grep -q overlay /proc/filesystems &&
+            return 0
+    fi
+    return 1
+}
+
+overlay_dir2() {
+    re modprobe_overlay
+    re mkdir -p /run/initramfs/ltsp
+    re mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/ltsp
+    re mkdir -p /run/initramfs/ltsp/up /run/initramfs/ltsp/work
+    re mount -t overlay -o upperdir=/run/initramfs/ltsp/up,lowerdir=$rootmnt,workdir=/run/initramfs/ltsp/work overlay "$rootmnt"
 }

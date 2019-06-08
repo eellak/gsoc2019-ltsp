@@ -12,9 +12,10 @@ init_cmdline() {
     run_main_functions "$scripts" "$@"
     rm /sbin/init
     mv /sbin/init.real /sbin/init
-    mount | grep -w dev || echo ========NODEV========
-    openvt -c 5 bash
-    # PS1='(init) \u@\h:\w\# ' bash -i </dev/console >/dev/console 2>&1
+    if ! mount | grep -qw dev; then
+        echo ========NODEV========
+        openvt -c 5 bash
+    fi
     debug_shell
     exec /sbin/init
 }
@@ -29,7 +30,7 @@ init_main() {
     if grep -qsw netconsole /proc/cmdline; then
         rw rm -f "$rootmnt/etc/sysctl.d/10-console-messages.conf"
     fi
-    rm -rf /run/netplan
+    rm -rf /run/netplan /etc/netplan /lib/systemd/system-generators/netplan
     test -f "$rootmnt/usr/lib/tmpfiles.d/systemd.conf" &&
         rw sed "s|^[aA]|# &|" -i "$rootmnt/usr/lib/tmpfiles.d/systemd.conf"
     # Silence dmesg: Failed to open system journal: Operation not supported
@@ -55,7 +56,7 @@ init_main() {
     echo "nameserver 194.63.238.4" > "$rootmnt/etc/resolv.conf"
     /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "$rootmnt/home"
     printf "qwer';lk\nqwer';lk\n" | rw chroot "$rootmnt" passwd
-    rb chroot "$rootmnt" useradd \
+    re chroot "$rootmnt" useradd \
 	    --comment 'LTSP live user,,,' \
 	    --groups adm,cdrom,sudo,dip,plugdev,lpadmin  \
 	    --create-home \
