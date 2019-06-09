@@ -218,10 +218,12 @@ img_src=$img_src
             exit_command "rw umount '$dst/$subdir'"
         elif [ -e "$img_path" ]; then
             re mount_file "$img_path" "$dst/$subdir" "$options" "$fstype" "$partition"
+        else
+            # Warn, don't die, to allow test-mounting image sources
+            warn "Image doesn't exist: $img_path"
+            return 1
         fi
     done
-    # After the mount list is done, $dst/proc must exist, otherwise fail (except for kernels)
-    # TODO: put this in ltsp image etc: test -d "$dst/proc" || die "$dst/proc doesn't exist after mount_img_src"
 }
 
 # Get the mount type of a device; may also return special types for convenience

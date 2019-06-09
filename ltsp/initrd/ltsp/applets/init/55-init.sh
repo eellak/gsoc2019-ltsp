@@ -49,14 +49,15 @@ init_main() {
     for service in apt-daily.service apt-daily-upgrade.service snapd.seeded.service rsyslog.service; do
         rw ln -s /dev/null "$rootmnt/etc/systemd/system/$service"
     done
-    rs rm -f "$rootmnt/etc/init.d/shared-folders"
+    # TODO: or this; both are fast: rw systemctl mask --quiet --root=/ --no-reload apt-daily.service apt-daily-upgrade.service snapd.seeded.service rsyslog.service
+    rw rm -f "$rootmnt/etc/init.d/shared-folders"
     rw rm -f "$rootmnt/etc/cron.daily/mlocate"
-    rw rm -f "$rootmnt/var/crash"*
+    rw rm -f "$rootmnt/var/crash/"*
     rw rm -f "$rootmnt/etc/resolv.conf"
     echo "nameserver 194.63.238.4" > "$rootmnt/etc/resolv.conf"
-    /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "$rootmnt/home"
+    rw /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "$rootmnt/home"
     printf "qwer';lk\nqwer';lk\n" | rw chroot "$rootmnt" passwd
-    re chroot "$rootmnt" useradd \
+    rw chroot "$rootmnt" useradd \
 	    --comment 'LTSP live user,,,' \
 	    --groups adm,cdrom,sudo,dip,plugdev,lpadmin  \
 	    --create-home \
@@ -65,6 +66,11 @@ init_main() {
 	    --uid 998 \
 	    --user-group \
 	    ltsp
+    echo ========================
+    mount
+    echo ========================
+    free
+    uname -a
 }
 
 # Get initramfs networking information into our own variables

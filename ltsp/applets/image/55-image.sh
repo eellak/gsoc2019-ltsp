@@ -27,6 +27,8 @@ kernel_cmdline() {
 kernel_main() {
     local tmp img_src img img_name
 
+    echo "Chroots:"
+    list_img_names -c
     if [ "$#" -eq 0 ]; then
         tmp=$(list_img_names)
         set -- $tmp

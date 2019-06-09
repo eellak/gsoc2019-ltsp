@@ -97,9 +97,10 @@ debug_shell() {
         unset setsid
     fi
     if is_command bash; then
-        $setsid bash
+        # If the last user command was false, don't exit
+        $setsid bash || true
     else
-        $setsid sh
+        $setsid sh || true
     fi
 }
 
@@ -229,13 +230,16 @@ re() {
 
 # Run a command and return 0. Silently.
 rs() {
-    RWR_SILENCE=1 rwr "$@" || true
+    local _RWR_SILENCE
+    # If _RWR_SILENCE isn't declared local, it might remain in the environment!
+    _RWR_SILENCE=1 rwr "$@" || true
 }
 
 # Run a command silently and return $?. Used like `rsr cmd1 || cmd2`.
 # This is just a shortcut for `cmd1 >/dev/null 2>&1 || cmd2`.
 rsr() {
-    RWR_SILENCE=1 rwr "$@" || return $?
+    local _RWR_SILENCE
+    _RWR_SILENCE=1 rwr "$@" || return $?
 }
 
 # Run a command and return 0. Warn if it failed.
@@ -249,7 +253,6 @@ rw() {
 rwr() {
     local want got
 
-    # TODO: remove: echo "rwr $*" >&2
     if [ "$1" = "!" ]; then
         want=1
         shift
@@ -257,14 +260,14 @@ rwr() {
         want=0
     fi
     got=0
-    if [ -n "$RWR_SILENCE" ]; then
+    if [ "$_RWR_SILENCE" = "1" ]; then
         "$@" >/dev/null 2>&1 || got=$?
     else
         "$@" || got=$?
     fi
     # Failed if either of them is zero and the other non-zero
     if [ "$want" = 0 -a "$got" != 0 ] || [ "$want" != 0 -a "$got" = 0 ]; then
-        test -n "$RWR_SILENCE" || warn "LTSP command failed: $*"
+        test "$_RWR_SILENCE" = "1" || warn "LTSP command failed: $*"
     fi
     return $got
 }

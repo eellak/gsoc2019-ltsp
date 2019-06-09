@@ -17,6 +17,7 @@ initrd_bottom_cmdline() {
         # TODO: check which other variables we need, e.g. ROOT, netroot...
     fi
     run_main_functions "$scripts" "$@"
+    debug_shell
 }
 
 initrd_bottom_main() {
@@ -37,17 +38,6 @@ initrd_bottom_main() {
     test -d "$rootmnt/proc" || die "$rootmnt/proc doesn't exist in initrd-bottom"
     test "$LTSP_OVERLAY" = "0" || re overlay_root
     re override_init
-}
-
-
-is_writeable() {
-    local dst
-
-    dst="$1"
-    chroot "$dst" /usr/bin/test -w / && return 0
-    rw mount -o remount,rw "$dst"
-    chroot "$dst" /usr/bin/test -w / && return 0
-    return 1
 }
 
 modprobe_overlay() {
@@ -99,9 +89,4 @@ overlay_root() {
     re mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/ltsp
     re mkdir -p /run/initramfs/ltsp/up /run/initramfs/ltsp/work
     re mount -t overlay -o upperdir=/run/initramfs/ltsp/up,lowerdir=$rootmnt,workdir=/run/initramfs/ltsp/work overlay "$rootmnt"
-    # Seen on 20190516 on stretch-mate-sch and bionic-minimal
-    if run-init -n "$rootmnt" /sbin/init 2>&1 | grep -q console; then
-        warn "$0 working around https://bugs.debian.org/811479"
-        re mount --bind /dev "$rootmnt/dev"
-    fi
 }
