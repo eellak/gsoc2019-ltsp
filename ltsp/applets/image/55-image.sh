@@ -8,15 +8,13 @@ kernel_cmdline() {
     local scripts args
 
     scripts="$1"; shift
-    args=$(re getopt -n "$_LTSP_APPLET" -o "hi:k:n:V" \
-        -l "help,initrd:,kernel:,name:,version" -- "$@")
+    args=$(re getopt -n "$_LTSP_APPLET" -o "hk:V" \
+        -l "help,kernel:,version" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
             -h|--help) applet_usage; exit 0 ;;
-            -i|--initrd-regex) shift; INITRD_REGEX="$1" ;;
-            -k|--kernel-glob) shift; KERNEL_GLOB="$1" ;;
-            -n|--name) shift; NAME="$1" ;;
+            -k|--kernel-initrd) shift; KERNEL_INITRD="$1" ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
             *) die "$_LTSP_APPLET: error in cmdline" ;;
@@ -27,53 +25,43 @@ kernel_cmdline() {
 }
 
 kernel_main() {
-    local tmp img_cmd img img_name tmp
+    local tmp img_src img img_name
 
-    while read -r img_cmd <&3; do
+    if [ "$#" -eq 0 ]; then
+        tmp=$(list_img_names)
+        set -- $tmp
+    fi
+    for img_src in "$@"; do
+        img_path=$(add_path_to_src "${img_src%%,*}")
+        img_name=$(img_path_to_name "$img_path")
+        re test "kernel_main:$img_name" != "kernel_main:"
         tmp=$(re mktemp -d)
         exit_command "rw rmdir '$tmp'"
         # tmp has mode=0700; use a subdir to hide the mount from users
         re mkdir -p "$tmp/ltsp"
         exit_command "rw rmdir '$tmp/ltsp'"
         tmp=$tmp/ltsp
-        img=${img_cmd%%,*}
-        if [ "$img" = "/" ]; then  # Chrootless
-            img_name=$(re uname -m)
-        else
-            # Keep the last dir (not file) name
-            if [ -d "$img" ]; then
-                img_name=$img
-            else
-                img_name=${img%/*}
-            fi
-            img_name=${img_name##*/}
-        fi
-        # TODO: document to avoid `re test -n`, for easier debugging
-        re test "img_name$img_name" != "img_name"
-        re mount_list "$img_cmd" "$tmp"
+        re mount_img_src "$img_src" "$tmp"
         re mkdir -p "$TFTP_DIR/ltsp/$img_name/"
         read -r vmlinuz initrd <<EOF
 $(search_kernel "$tmp" | head -n 1)
 EOF
-        if [ -n "$vmlinuz" ] && [ -n "$initrd" ]; then
-            # ls -l --color "$vmlinuz" "$initrd"
-            install -v -m 644 "$vmlinuz" "$TFTP_DIR/ltsp/$img_name/vmlinuz"
-            install -v -m 644 "$initrd" "$TFTP_DIR/ltsp/$img_name/initrd.img"
+        if [ -f "$vmlinuz" ] && [ -f "$initrd" ]; then
+            re install -v -m 644 "$vmlinuz" "$TFTP_DIR/ltsp/$img_name/vmlinuz"
+            re install -v -m 644 "$initrd" "$TFTP_DIR/ltsp/$img_name/initrd.img"
         else
-            warn "Could not locate vmlinuz and initrd.img in $img_cmd"
+            warn "Could not locate vmlinuz and initrd.img in $img_src"
         fi
         # Unmount everything and continue with the next image
         at_exit -EXIT
-    done 3<<EOF
-$(list_images "$@")
-EOF
+    done
 }
 
 # Search for the kernel and initrd inside $dir
 search_kernel() {
     local dir vglob ireg vmlinuz initrd
 
-    dir=$1
+    dir=${1%/}
     while read -r vglob ireg <&3; do
         # Ignore comments and empty lines
         if [ -z "$vglob" ] || [ "$vglob" = "#" ]; then
@@ -95,10 +83,10 @@ search_kernel() {
             fi
         done | sort -rV
     done 3<<EOF
-# Column 1: the kernel file name, including wildcards
-# Column 2: sed regex to calculate the initrd file name from the kernel
-# The user defined ones come first
-    $KERNEL_GLOB $INITRD_REGEX
+# Column 1: a glob pattern to locate the kernel(s)
+# Column 2: sed regex to derive the initrd file name from the kernel
+# The user defined one comes first
+    $KERNEL_INITRD
 # openSUSE-Tumbleweed-GNOME-Live-x86_64-Current.iso
     boot/*/loader/linux s|linux|initrd|
 # Ubuntu 18 live CDs:

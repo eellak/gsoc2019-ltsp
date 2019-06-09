@@ -20,28 +20,20 @@ initrd_bottom_cmdline() {
 }
 
 initrd_bottom_main() {
-    local loop
+    local loop img_src
 
     warn "Running $0"
     kernel_variables
-    img=${nfsroot##*/}
     if [ -n "$LTSP_IMAGE" ]; then
-        if [ "${LTSP_IMAGE#/}" = "$LTSP_IMAGE" ]; then
-            # If it doesn't start with slash, it's relative to $rootmnt
-            LTSP_IMAGE="$rootmnt/$LTSP_IMAGE"
+        img_src=$LTSP_IMAGE
+        # If it doesn't start with slash, it's relative to $rootmnt
+        if [ "${img_src#/}" = "$img_src" ]; then
+            img_src="$rootmnt/$img_src"
         fi
-    # Quick autodetection
-    elif [ -d "$rootmnt/proc" ]; then
-        # No need to call mount_list
-        true
-    elif [ -e "$rootmnt/ltsp.img" ]; then
-        LTSP_IMAGE="$rootmnt/ltsp.img"
-    elif [ -e "$rootmnt/$img-flat.vmdk" ]; then
-        LTSP_IMAGE="$rootmnt/$img-flat.vmdk"
-    else
+        re mount_img_src "$img_src" "$rootmnt"
+    elif [ ! -d "$rootmnt/proc" ]; then
         die "$rootmnt/proc doesn't exist and ltsp.image wasn't specified"
     fi
-    test -n "$LTSP_IMAGE" && re mount_list "$LTSP_IMAGE" "$rootmnt"
     test -d "$rootmnt/proc" || die "$rootmnt/proc doesn't exist in initrd-bottom"
     test "$LTSP_OVERLAY" = "0" || re overlay_root
     re override_init

@@ -29,14 +29,33 @@ LTSP clients get the following applets instead; they should not be run by the us
 
 Developers of other packages may use symlinks to ltsp.sh in order to run applets, as long as the symlink name is **ltsp-**_applet_.
 
+## NEW NOTES
+1) The VMs are user-owned. We don't want to place the generated images
+or the copied kernels in the same dir, as we'll end up having root owned
+files in the user folder.
+
+2) The export dir will be root-owned. Chroots need to be there too,
+and it's fine, they're owned by root.
+
+3) TFTP can go in /srv/tftp. Multiple NFS exports can be defined;
+but only one TFTP base dir. Hence, /srv/tftp/ltsp for ltsp.
+Maybe /srv/ltsp/tftp can be ok too as the default, np.
+Subdirs vs not as well; normally only 2 subdirs there.
+
+4) `ltsp image x86_32` should be able to find it in the user VMs
+without an absolute path. So, the following symlinks should be used:
+/srv/ltsp/x86_64 => /
+/srv/ltsp/x86_32 => /home/administrator/VirtualBox VMs/x86_32/x86_32-flat.vmdk
+
 ## OPTIONS
 LTSP by default places everything under _/srv/ltsp_, but that can be configured by passing one or more of the following parameters:
 
 **-b**, **--base-dir=**_/srv/ltsp_
-  This is where the chroots or VMs are; so when you run `ltsp image x86_64`, it will search for a directory named **/srv/ltsp/x86_64**; otherwise you'd need to provide the full path, for example `ltsp image /home/username/VMs/x86_64`.
+  This is where the chroots or VMs are; so when you run `ltsp image name`, it will search for **/srv/ltsp/name**. If that name is a directory that contains /proc, it's considered a chroot; if it's a file, it's considered a VM. You may use symlinks, for example `ln -s / /srv/ltsp/x86_64` creates a symlink to the server installation to be used as an image source (chrootless setup), while `ln -s "/home/administrator/VirtualBox VMs/x86_32/x86_32-flat.img" /srv/ltsp/x86_32` specifies a VirtualBox VM as a source for 32bit clients.
+  Note that full paths are **not** supported as they'd make things more complicated; for example, `ltsp image /` would require a `--name` parameter to specify the image name; while creating the symlink allows you to run `ltsp image` later on to update all images.
 
 **-e**, **--export-dir=**_/srv/ltsp_
-  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $EXPORT_DIR/$image/ltsp.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
+  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $EXPORT_DIR/images/$image.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
 
 **-h**, **--help**
   Display a help message.

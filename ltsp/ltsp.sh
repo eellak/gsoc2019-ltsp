@@ -11,7 +11,7 @@ main() {
     local scripts
 
     # Always stop on unhandled errors, http://fvue.nl/wiki/Bash:_Error_handling
-    # We use? TODO this quirk: `false && false; echo ok` ==> doesn't exit
+    # Prefer `false || false` as it exits while `false && false` doesn't
     set -e
 
     # If we're being sourced, $0 doesn't point to ltsp.sh, which means we

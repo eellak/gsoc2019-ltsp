@@ -6,56 +6,142 @@
 # chroot, image, info?, ipxe?, kernel, nbd-server?, initrd-bottom
 # So we can't have /etc/ltsp/applet.conf with [sections];
 # let's put everything in a global /etc/ltsp/ltsp.conf instead
+# We use the following terminology:
+# * img_src is a series of mount sources, for example:
+#     img1,mount-options1,,img2,mount-options2,,...
+# * img may be a simple name or a relative/absolute path.
+# By "simple" we mean the way a user would pass it to ltsp, for example
+# `ltsp kernel image-name`, without specifying chroot, VM, or squashfs image.
+# Initramfs-tools don't quote `nfsmount ${NFSROOT}` or `$nbdpath`, so
+# simple names may not contain anything weird like spaces etc.
+# `ltsp kernel "~/VirtualBox VMs/image-name.img"` is allowed though.
+# * img_path may be a relative/absolute path but not a simple name.
+# * img_name is the simple name of an image.
 
-# List the full path to the specified (or all) images, one per line
-list_images() {
-    local paramc img_src img img_name
+# Convert from img_path (not img, not img_src) to img_name
+img_path_to_name() {
+    local img_path img_name
 
-    paramc="$#"
-    if [ "$paramc" = "0" ]; then
-        set -- "$BASE_DIR/"*
+    img_path=$1
+    img_name=${img_path##*/}
+    if [ -f "$img_path" ]; then
+        img_name=${img_name%.img}  # Remove the .img extension for files
+    elif [ ! -e "$img_path" ]; then
+        die "Image doesn't exist: $img_path"
     fi
-    for img_src in "$@"; do
-        # Extract its path, without the options/submounts
-        img=${img_src%%,*}
-        img_src=${img_src#$img}
-        # If it doesn't start with . or /, it's relative to $BASE_DIR
-        if [ "${img}" = "${img#.}" ] && [ "${img}" = "${img#/}" ]; then
-            img=$(re readlink -f "$BASE_DIR/$img")
-        else
-            img=$(re readlink -f "$img")
-        fi
-        # Put back the canonicalized path
-        img_src="$img$img_src"
-        if [ ! -e "$img" ]; then
-            die "Image doesn't exist: $img"
-        fi
-        # Get its its basename
-        img_name=${img##*/}
-        # Prefer to list chroots first; override by specifying the full path
-        if [ -d "$img/proc" ]; then
-            echo "$img_src"
-        elif [ "$_APPLET" != "image" ] && [ -e "$img/ltsp.img" ]; then
-            # `ltsp image` shouldn't list the squashfs images
-            img_src=${img_src#$img}
-            img_src="$img/ltsp.img$img_src"
-            echo "$img_src"
-        elif [ -e "$img/$img_name-flat.vmdk" ]; then
-            img_src=${img_src#$img}
-            img_src="$img/$img_name-flat.vmdk$img_src"
-            echo "$img_src"
-        elif [ "$paramc" = 0 ]; then
-            # End of autodetection
-            continue
-        else
-            echo "$img_src"
-        fi
+    case "$img_name" in
+        *,*)
+            # Commas are reserved for mount options
+            die "No commas allowed in LTSP image names: $img_path"
+            ;;
+        ""|.|..)
+            # User used e.g. `..`; find the full path
+            img_name=$(re readlink -f "$img_path")
+            img_name=${img_path##*/}
+            if [ "$img_name" = "" ]; then  # E.g. chrootless
+                img_name=$(re uname -m)
+                warn "Using $img_name as the base name of image $img_path"
+            fi
+            ;;
+    esac
+    # Verify that the image name is the same with or without quotes
+    set -- $img_name
+    if [ "$img_name" != "$1" ]; then  # $1 was set by `set` above
+        die "Invalid LTSP image name: $img_path"
+    fi
+    echo "$img_name"
+}
+
+# List the simple names (img_name) of all images under $BASE_DIR[/images]
+# For nfsroot= to work, image names may not contain spaces
+# So it can be used from other functions like this:
+#   if [ "$#" -eq 0 ]; then
+#       images=$(list_img_names)
+#       set -- $images
+#   fi
+# Do not use `set -- $(list_img_names)` as it won't die on error
+list_img_names() {
+    # chroots, VMs, exported images
+    local listc listv listi img_path img_names
+
+    test "$#" -ne 0 || set -- -c -v -i
+    while [ -n "$1" ]; do
+        case "$1" in
+            -c) listc=1 ;;
+            -v) listv=1 ;;
+            -i) listi=1 ;;
+            *)  die "Error in list_all_images"
+        esac
+        shift
     done
+    img_names=$(
+        if [ "$listc" = "1" ]; then
+            for img_path in "$BASE_DIR/"*; do
+                test -d "$img_path/proc" || continue
+                img_path_to_name "$img_path"
+            done
+        fi
+        if [ "$listv" = "1" ]; then
+            for img_path in "$BASE_DIR/"*.img; do
+                test -f "$img_path" || continue
+                img_path_to_name "$img_path"
+            done
+        fi
+        if [ "$listi" = "1" ]; then
+            for img_path in "$BASE_DIR/images/"*.img; do
+                test -f "$img_path" || continue
+                img_path_to_name "$img_path"
+            done
+        fi
+        # `set -e` may not work in pipes or subshells; be more explicit
+        ) || return $?
+    echo "$img_names" | sort -u
+}
+
+# If img_src ($1) seems like a simple name, map to the appropriate
+# chroot/VM/image under $BASE_DIR, depending on the defined priority.
+add_path_to_src() {
+    local img_src img rest priority
+
+    img_src=$1; shift
+    case "$img_src" in
+        .*|/*)  echo "$img_src"; return 0 ;;
+    esac
+    img=${img_src%%,*}
+    rest=${img_src#$img}
+    test "$#" -ne 0 || set -- -c -v -i
+    for priority in "$@"; do
+        case "$priority" in
+            -c) if [ -d "$BASE_DIR/$img/proc" ]; then
+                    echo "$BASE_DIR/$img$rest"
+                    return 0
+                fi
+                ;;
+            -v) if [ -f "$BASE_DIR/$img.img" ]; then
+                    echo "$BASE_DIR/$img.img$rest"
+                    return 0
+                fi
+                ;;
+            -i) if [ -f "$BASE_DIR/images/$img.img" ]; then
+                    echo "$BASE_DIR/images/$img.img$rest"
+                    return 0
+                fi
+                ;;
+            *) die "Error in list_all_images: $priority" ;;
+        esac
+    done
+    # Finally, check if it was a relative path under $BASE_DIR or $(pwd)
+    if [ -e "$BASE_DIR/$img" ]; then
+        echo "$BASE_DIR/$img$rest"
+    elif [ -e "$img" ]; then
+        echo "$img$rest"
+    else
+        die "Image does not exist: $img"
+    fi
 }
 
 # Process a series of mount sources to mount an image to dst, for example:
-#   img_src1,mount-options1,,img_src2,mount-options2,,img3 dst
-# Image sources must come from "list_images" and contain full path info.
+#     img1,mount-options1,,img2,mount-options2,,...
 # The following rules apply:
 #   * If it's a directory, it's bind-mounted over $dst[/$subdir].
 #   * If it's a file, the (special) mount options along with autodetection
@@ -75,23 +161,22 @@ list_images() {
 # root=/dev/sda1 ltsp.image=/path/to/VMs/bionic-mate-flat.vmdk,partition=1
 # Examples for ltsp image:
 # ltsp image -c /,,/boot/efi,subdir=boot/efi
-mount_list() {
-    local img_src dst options img partition fstype subdir var_value value
+mount_img_src() {
+    local img_src dst options img partition fstype subdir var_value value first_time
 
     img_src=$1
     dst=$2
-    # img_src MUST come from list_images, i.e. have path information
-    re test "img_src$img_src" != "img_src${img_src##*/}"
-    re test -d "$dst"
-    dst=${dst%/}  # Remove the final slash
+    # Ensure $dst is a directory but not /
+    dst=$(re readlink -f "$dst")
+    test -d "${dst%/}" || die "Error in mount_img_src: $dst"
+    first_time=1
     while [ -n "$img_src" ]; do
-        img=${img_src%%,,*}
-        img_src=${img_src#$img}
+        img_options=${img_src%%,,*}
+        img_src=${img_src#$img_options}
         img_src=${img_src#,,}
-        img_path=${img%%,*}
-        options=${img#$img_path}
+        img=${img_options%%,*}
+        options=${img_options#$img}
         options=${options#,}
-        img=$img_path
         partition=
         fstype=
         subdir=
@@ -107,30 +192,36 @@ mount_list() {
             options=${options#$var_value}
             options=${options#,}
         done
-        # list_image returns absolute paths for initial mounts.
-        # Submounts may be relative to $dst.
-        if [ "${img#/}" = "$img" ]; then
-            img=$dst/$img
+        if [ "$first_time" = "1" ]; then
+            # Allow the first img to be a simple img_name
+            img_path=$(add_path_to_src "$img")
+            unset first_time
+        elif [ "${img#/}" = "$img" ]; then
+            # Submounts may be absolute or relative to $dst
+            img_path=$dst/$img
+        else
+            img_path=$img
         fi
-        debug "img_src=$img_src
-img=$img
+        debug "img=$img
+img_path=$img_path
 options=$options
 partition=$partition
 fstype=$fstype
 subdir=$subdir
+img_src=$img_src
 "
-        # Now we have full path information
-        if [ -d "$img" ]; then
+        # Now img_path has enough path information
+        if [ -d "$img_path" ]; then
             # TODO: it's for debugging, remove the next line
-            re test "$img" != "$dst"
-            re mount --bind "$img" "$dst/$subdir"
+            re test "mount_img_src:$img_path" != "mount_img_src:$dst"
+            re mount --bind "$img_path" "$dst/$subdir"
             exit_command "rw umount '$dst/$subdir'"
-        elif [ -e "$img" ]; then
-            re mount_file "$img" "$dst/$subdir" "$options" "$fstype" "$partition"
+        elif [ -e "$img_path" ]; then
+            re mount_file "$img_path" "$dst/$subdir" "$options" "$fstype" "$partition"
         fi
     done
-    # After the mount list is done, $dst/proc must exist, otherwise fail
-    # TODO: put this in ltsp image etc: test -d "$dst/proc" || die "$dst/proc doesn't exist after mount_list"
+    # After the mount list is done, $dst/proc must exist, otherwise fail (except for kernels)
+    # TODO: put this in ltsp image etc: test -d "$dst/proc" || die "$dst/proc doesn't exist after mount_img_src"
 }
 
 # Get the mount type of a device; may also return special types for convenience
