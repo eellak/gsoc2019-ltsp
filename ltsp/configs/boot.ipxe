@@ -75,8 +75,9 @@ set nfs_chroot root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img}
 set nfs_image root=/dev/nfs nfsroot=${srv}:/srv/ltsp/images ltsp.image=${img}.img
 set nfs_my_image root=/dev/nfs nfsroot=${srv}:/srv/ltsp ltsp.image=images/${img}.img
 set nfs_ubuntu_iso root=/dev/nfs nfsroot=${srv}:/srv/ltsp ltsp.image=images/${img}.img,,casper/filesystem.squashfs
+set nfs_debian_live root=/dev/nfs nfsroot=${srv}:/srv/ltsp ltsp.image=images/${img}.img,,live/filesystem.squashfs
 set nfs_liveusb root=/dev/nfs nfsroot=${srv}:/srv/ltsp ltsp.image=images/${img}.img,,liveusb/Ubuntu/ubuntu-mate-18.04.1-desktop-amd64.iso,,casper/filesystem.squashfs
-set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} ${nfs_ubuntu_iso} loop.max_part=9 vga!=0x343 break!=init
+set cmdline ${cmdline_extra} BOOTIF=01-${mac:hexhyp} ${nfs_debian_live} loop.max_part=9 vga!=0x343 break!=init
 kernel /ltsp/${img}/vmlinuz initrd=initrd.img initrd=ltsp.img ${cmdline}
 initrd /ltsp/${img}/initrd.img
 initrd /ltsp/ltsp.img

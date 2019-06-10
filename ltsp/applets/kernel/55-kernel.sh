@@ -99,6 +99,8 @@ search_kernel() {
     install.amd/vmlinuz s|vmlinuz|initrd.gz|
 # Fedora-Workstation-Live-x86_64-29-1.2.iso
     isolinux/vmlinuz s|vmlinuz|initrd.img|
+# debian-live-testing-i386-xfce+nonfree.iso
+    live/vmlinuz-* s|vmlinuz|initrd.img|
 # deb-based, prefer symlinks, see: man kernel-img.conf
     vmlinuz s|vmlinuz|initrd.img|
 # deb-based installations

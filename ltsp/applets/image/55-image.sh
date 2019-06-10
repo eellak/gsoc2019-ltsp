@@ -4,7 +4,7 @@
 
 # Create a squashfs image from an image source
 
-kernel_cmdline() {
+image_cmdline() {
     local scripts args
 
     scripts="$1"; shift
@@ -13,8 +13,12 @@ kernel_cmdline() {
     eval "set -- $args"
     while true; do
         case "$1" in
+            -b|--backup) [=0|1]
+            -c|--cleanup) [=0|1]
             -h|--help) applet_usage; exit 0 ;;
             -k|--kernel-initrd) shift; KERNEL_INITRD="$1" ;;
+            -m|--mksquashfs-params)
+            -r|--revert)
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
             *) die "$_LTSP_APPLET: error in cmdline" ;;
@@ -24,7 +28,7 @@ kernel_cmdline() {
     run_main_functions "$scripts" "$@"
 }
 
-kernel_main() {
+image_main() {
     local tmp img_src img img_name
 
     echo "Chroots:"
@@ -57,57 +61,4 @@ EOF
         # Unmount everything and continue with the next image
         at_exit -EXIT
     done
-}
-
-# Search for the kernel and initrd inside $dir
-search_kernel() {
-    local dir vglob ireg vmlinuz initrd
-
-    dir=${1%/}
-    while read -r vglob ireg <&3; do
-        # Ignore comments and empty lines
-        if [ -z "$vglob" ] || [ "$vglob" = "#" ]; then
-            continue
-        fi
-        # debug "\tvglob=%s\tireg=%s\n" "$glob" "$ireg"
-        for vmlinuz in "$dir/"$vglob "$dir/boot/"$vglob; do
-            test -f "$vmlinuz" || continue
-            initrd=$(printf "%s" "$vmlinuz" | sed "$ireg")
-            if [ "$vmlinuz" = "$initrd" ]; then
-                debug "\tRegex returned the same file name, ignoring:\n"
-                debug "%s, %s, %s\n" "$vmlinuz" "$initrd" "$ireg"
-                continue
-            fi
-            if [ -f "$initrd" ]; then
-                printf "%s\t%s\n" "$(ls "$vmlinuz")" "$(ls "$initrd")"
-            else
-                debug "FOUND: $vmlinuz, NOT FOUND: $initrd\n"
-            fi
-        done | sort -rV
-    done 3<<EOF
-# Column 1: a glob pattern to locate the kernel(s)
-# Column 2: sed regex to derive the initrd file name from the kernel
-# The user defined one comes first
-    $KERNEL_INITRD
-# openSUSE-Tumbleweed-GNOME-Live-x86_64-Current.iso
-    boot/*/loader/linux s|linux|initrd|
-# Ubuntu 18 live CDs:
-    casper/vmlinuz s|vmlinuz|initrd|
-# Ubuntu 10, 12, 14, LinuxMint 19, Xubuntu 18:
-    casper/vmlinuz s|vmlinuz|initrd.lz|
-# Ubuntu 8 live CD:
-    casper/vmlinuz s|vmlinuz|initrd.gz|
-# debian-testing-amd64-DVD-1.iso
-    install.amd/vmlinuz s|vmlinuz|initrd.gz|
-# Fedora-Workstation-Live-x86_64-29-1.2.iso
-    isolinux/vmlinuz s|vmlinuz|initrd.img|
-# deb-based, prefer symlinks, see: man kernel-img.conf
-    vmlinuz s|vmlinuz|initrd.img|
-# deb-based installations
-    vmlinuz-* s|vmlinuz|initrd.img|
-# CentOS/Gentoo installations (vmlinuz-VER => initramfs-VER.img)
-    vmlinuz-* s|vmlinuz-\(.*\)|initramfs-\1.img|
-# Tinycorelinux
-    vmlinuz s|vmlinuz|core.gz|
-EOF
 }

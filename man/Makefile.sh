@@ -5,7 +5,7 @@
 
 # Use go-md2man to convert the .md files into manpages;
 # put the output in ./man/man[0-9] subdirectories, to make packaging easier,
-# and to be able to test with: MANPATH=man man ltsp-kernel
+# and to be able to test with: `MANPATH=man man ltsp kernel`
 
 VERSION=$(. ../ltsp/applets/ltsp/55-ltsp.sh && echo $_VERSION)
 date=$(date "+%Y-%m-%d")

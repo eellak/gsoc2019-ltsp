@@ -17,7 +17,6 @@ initrd_bottom_cmdline() {
         # TODO: check which other variables we need, e.g. ROOT, netroot...
     fi
     run_main_functions "$scripts" "$@"
-    debug_shell
 }
 
 initrd_bottom_main() {
