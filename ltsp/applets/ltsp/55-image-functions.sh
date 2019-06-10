@@ -214,7 +214,12 @@ img_src=$img_src
         if [ -d "$img_path" ]; then
             # TODO: it's for debugging, remove the next line
             re test "mount_img_src:$img_path" != "mount_img_src:$dst"
-            re mount --bind "$img_path" "$dst/$subdir"
+            # Without --make-private, `mount` while `ltsp image /` runs, shows:
+            # overlay / overlay rw,relatime,lowerdir=/tmp/tmp.Sji338BQsB/ltsp,upperdir=/tmp/tmp.Sji338BQsB/up,workdir=/tmp/tmp.Sji338BQsB/work 0 0
+            # ...which is scary; and, additionally, inserting a flash drive
+            # at that point mounts it under /tmp/tmp.Sji338BQsB/ltsp/media!
+            warn "Running: mount --bind --make-private -o ${options:-ro} $img_path $dst/$subdir"
+            re mount --bind --make-private -o "${options:-ro}" "$img_path" "$dst/$subdir"
             exit_command "rw umount '$dst/$subdir'"
         elif [ -e "$img_path" ]; then
             re mount_file "$img_path" "$dst/$subdir" "$options" "$fstype" "$partition"
@@ -295,31 +300,25 @@ mount_file() {
     die "I don't know how to mount $src"
 }
 
-modprobe_overlay2() {
-    grep -q overlay /proc/filesystems &&
-        return 0
-    modprobe overlay &&
-        grep -q overlay /proc/filesystems &&
-        return 0
-    if [ -n "$rootmnt" ] &&
-        [ -f "$rootmnt/lib/modules/$(uname -r)/kernel/fs/overlayfs/overlay.ko" ]
-    then
-        echo "Loading overlay module from real root" >&2
-        re mv /lib/modules /lib/modules.real
-        re ln -s "$rootmnt/lib/modules" /lib/modules
-        re modprobe overlay
-        re rm /lib/modules
-        re mv /lib/modules.real /lib/modules
-        grep -q overlay /proc/filesystems &&
-            return 0
-    fi
-    return 1
-}
+# Overlay src into dst; note that $dst/../up and $dst/../work are created
+# It uses exit_command for umount / rmdir
+overlay() {
+    local src dst dst_par
 
-overlay_dir2() {
-    re modprobe_overlay
-    re mkdir -p /run/initramfs/ltsp
-    re mount -t tmpfs -o mode=0755 tmpfs /run/initramfs/ltsp
-    re mkdir -p /run/initramfs/ltsp/up /run/initramfs/ltsp/work
-    re mount -t overlay -o upperdir=/run/initramfs/ltsp/up,lowerdir=$rootmnt,workdir=/run/initramfs/ltsp/work overlay "$rootmnt"
+    src=$1
+    dst=$2
+    re test -d "$src"
+    re test -d "$dst"
+    # Allow `mount` to show the absolute path of the destination parent
+    dst_par=$(re readlink -f "$dst/..")
+    re test "overlay_dir:$dst_par" != "overlay_dir:/"
+    if ! grep -q overlay /proc/filesystems; then
+        re modprobe overlay
+        grep -q overlay /proc/filesystems || die "Could not modprobe overlay"
+    fi
+    re mkdir -p "$dst_par/up" "$dst_par/work"
+    exit_command "rm -r '$dst_par/up' '$dst_par/work'"
+    warn "Running: mount -t overlay -o upperdir=$dst_par/up,lowerdir=$src,workdir=$dst_par/work overlay $dst"
+    re mount -t overlay -o "upperdir=$dst_par/up,lowerdir=$src,workdir=$dst_par/work" overlay "$dst"
+    exit_command "umount '$dst'"
 }

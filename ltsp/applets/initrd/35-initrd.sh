@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Create the additional LTSP initrd image at $TFTP_DIR/ltsp/ltsp.img
-# Vendors can add to $_DST_DIR between initrd.sh and finalize.sh.
+# Vendors can add to $_DST_DIR between initrd_main and finalize_main
 
 initrd_cmdline() {
     local scripts args _DST_DIR

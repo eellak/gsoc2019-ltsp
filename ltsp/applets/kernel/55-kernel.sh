@@ -28,8 +28,12 @@ kernel_main() {
     local tmp img_src img img_name
 
     if [ "$#" -eq 0 ]; then
-        tmp=$(list_img_names)
-        set -- $tmp
+        img_name=$(list_img_names)
+        set -- $img_name
+        if [ "$#" -gt 3 ] && [ "$ALL_IMAGES" != "1" ]; then
+            die "Refusing to run $_LTSP_APPLET for $# detected images!
+Please export ALL_IMAGES=1 if you want to allow this"
+        fi
     fi
     for img_src in "$@"; do
         img_path=$(add_path_to_src "${img_src%%,*}")
@@ -42,6 +46,7 @@ kernel_main() {
         exit_command "rw rmdir '$tmp/ltsp'"
         tmp=$tmp/ltsp
         re mount_img_src "$img_src" "$tmp"
+        debug_shell
         re mkdir -p "$TFTP_DIR/ltsp/$img_name/"
         read -r vmlinuz initrd <<EOF
 $(search_kernel "$tmp" | head -n 1)
@@ -53,7 +58,7 @@ EOF
             warn "Could not locate vmlinuz and initrd.img in $img_src"
         fi
         # Unmount everything and continue with the next image
-        at_exit -EXIT
+        rw at_exit -EXIT
     done
 }
 

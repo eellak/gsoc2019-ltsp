@@ -97,10 +97,10 @@ debug_shell() {
         unset setsid
     fi
     if is_command bash; then
-        # If the last user command was false, don't exit
-        $setsid bash || true
+        # If the last user command returns false, we fail/exit on purpose!
+        $setsid bash
     else
-        $setsid sh || true
+        $setsid sh
     fi
 }
 
