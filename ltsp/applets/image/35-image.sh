@@ -6,7 +6,7 @@
 # Vendors can add to $_DST_DIR between image_main and finalize_main
 
 image_cmdline() {
-    local scripts args _DST_DIR
+    local scripts args _DST_DIR img_name
 
     scripts="$1"; shift
     args=$(re getopt -n "$_LTSP_APPLET" -o "hk:V" \
@@ -26,13 +26,6 @@ image_cmdline() {
         esac
         shift
     done
-    _DST_DIR=""
-    run_main_functions "$scripts" "$@"
-}
-
-image_main() {
-    local img_src img img_name
-
     if [ "$#" -eq 0 ]; then
         img_name=$(list_img_names)
         set -- $img_name
@@ -41,20 +34,25 @@ image_main() {
 Please export ALL_IMAGES=1 if you want to allow this"
         fi
     fi
-    for img_src in "$@"; do
-        img_path=$(add_path_to_src "${img_src%%,*}")
-        img_name=$(img_path_to_name "$img_path")
-        re test "image_main:$img_name" != "image_main:"
-        _DST_DIR=$(re mktemp -d)
-        exit_command "rw rmdir '$_DST_DIR'"
-        # _DST_DIR has mode=0700; use a subdir to hide the mount from users
-        _DST_DIR="$_DST_DIR/ltsp"
-        re mkdir -p "$_DST_DIR"
-        exit_command "rw rmdir '$_DST_DIR'"
-        re mount_img_src "$img_src" "$_DST_DIR"
-        overlay "$_DST_DIR" "$_DST_DIR"
-        debug_shell
-        # Unmount everything and continue with the next image
-        rw at_exit -EXIT
+    for img_name in "$@"; do
+        _DST_DIR=""
+        run_main_functions "$scripts" "$img_name"
     done
+}
+
+image_main() {
+    local img_src img img_name
+
+    img_src="$1"
+    img_path=$(add_path_to_src "${img_src%%,*}")
+    img_name=$(img_path_to_name "$img_path")
+    re test "image_main:$img_name" != "image_main:"
+    _DST_DIR=$(re mktemp -d)
+    exit_command "rw rmdir '$_DST_DIR'"
+    # _DST_DIR has mode=0700; use a subdir to hide the mount from users
+    _DST_DIR="$_DST_DIR/ltsp"
+    re mkdir -p "$_DST_DIR"
+    exit_command "rw rmdir '$_DST_DIR'"
+    re mount_img_src "$img_src" "$_DST_DIR"
+    overlay "$_DST_DIR" "$_DST_DIR"
 }

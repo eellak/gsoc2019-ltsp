@@ -2,7 +2,7 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-finalize_main() {
+cpio_main() {
     local script
 
     # Syntax check all the shell scripts
@@ -20,5 +20,5 @@ EOF
     re install -vm 644 "$_DST_DIR/ltsp.img" "$TFTP_DIR/ltsp/"
     re rm -r "$_DST_DIR"
     echo "Generated ltsp.img:"
-#    re ls -l "$TFTP_DIR/ltsp/ltsp.img"
+    re ls -l "$TFTP_DIR/ltsp/ltsp.img"
 }
