@@ -1,0 +1,53 @@
+#!/bin/sh
+# When a user runs `su -`, this is called with the user credentials,
+# unless seteuid is specified. What do we prefer?
+# Also, do we want to allow "user1" to run "su - user2" ?
+# In that case, we do need seteuid.
+
+# Example PAM environment for user "ltsp" running `su - administrator`:
+#   uid=0, gid=1100(ltsp), groups=1100(ltsp),4(adm),etc
+#   PAM_USER=administrator (the target)
+#   PAM_RUSER=ltsp (the source)
+#   PAM_SERVICE=su
+#   PAM_TTY=/dev/lconsole
+#   PWD=/home/ltsp
+# Example PAM environment for user "root" running `login ltsp`:
+#   uid=0, gid=0, groups=0
+#   PAM_USER=ltsp
+#   PAM_RHOST=
+#   PAM_TYPE=auth
+#   PAM_TTY=/dev/console
+#   PWD=/
+# PATH doesn't exist, but seems to search in the correct places anyway.
+# E.g. /home/user/bin isn't searched; /usr/bin is.
+
+msg=$(gettext -d shadow "Login incorrect")
+msg=${msg:-Authentication failure}
+msg=".$msg."
+
+die() {
+    printf "%s\n" "$*" >&2
+    exit 1
+}
+
+show_env() {
+    id
+    pwd
+    env
+    which env
+}
+
+show_env > /tmp/pam-env
+
+# Verify we're being called from PAM and that the user is marked as an ssh user
+# TODO: don't reveal that the username doesn't exist; use one of:
+# su: Authentication failure = gettext -d Linux-PAM "Authentication failure"
+# login: Login incorrect = gettext -d shadow 'Login incorrect'
+# That last one works in fedora too.
+sline=$(getent shadow "$PAM_USER") || die "User $PAM_USER doesn't exist"
+test "${sline#$PAM_USER:ssh}" != "$sline" || die "User $PAM_USER can't auth via ssh"
+
+read -r pass
+test "$pass" = "q" || die "$msg"
+
+return 0

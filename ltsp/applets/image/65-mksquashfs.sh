@@ -5,6 +5,7 @@
 mksquashfs_main() {
     local img_src img img_name
 
+    export "_DST_DIR=$_DST_DIR"
     debug_shell
     # Unmount everything and continue with the next image
     rw at_exit -EXIT
