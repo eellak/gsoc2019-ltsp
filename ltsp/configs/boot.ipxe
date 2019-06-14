@@ -70,7 +70,7 @@ goto ${img}
 
 :vbox_vm
 #bionic-mate-sch32 => kernel bug with vga=0x343, crashes in vbox, works in vaio that doesn't have that mode
-set img bionic-mate-sch32
+set img bionic-mate-sch64
 set nfs_chroot root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img}
 set nfs_image root=/dev/nfs nfsroot=${srv}:/srv/ltsp/images ltsp.image=${img}.img
 set nfs_my_image root=/dev/nfs nfsroot=${srv}:/srv/ltsp ltsp.image=images/${img}.img

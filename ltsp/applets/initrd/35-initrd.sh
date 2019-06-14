@@ -38,4 +38,6 @@ initrd_main() {
         "$_SRC_DIR/applets/ltsp-initrd/ini2sh.awk" </etc/ltsp/client.conf \
             >"$_DST_DIR/ltsp/applets/ltsp/05-client-conf.sh"
     fi
+    # Copy server public ssh keys; prepend "server" to each entry
+    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/ltsp/applets/init/ssh_known_hosts"
 }
