@@ -13,21 +13,26 @@ die() {
 
 # Install pamssh in the system PAM configuration. Needs root.
 install() {
-    local search replace
+    local self search replace
 
-    # This is Debian/Ubuntu specific:
+    self=$(readlink -f "$0")
+    sed 's/.*\(KillUserProcesses=\).*/\1yes/' -i /etc/systemd/logind.conf
+    # These are Debian/Ubuntu specific:
     search="^auth\t\[success=1 default=ignore\]\tpam_unix.so nullok_secure$"
     replace="auth\t\[success=2 default=ignore\]\tpam_unix.so nullok_secure\n\
-auth\t\[success=1 default=ignore\]\tpam_exec.so expose_authtok stdout quiet $(readlink -f "$0") pam_auth"
+auth\t\[success=1 default=ignore\]\tpam_exec.so expose_authtok stdout quiet $self pam_auth"
     sed "s|$search|$replace|" -i /etc/pam.d/common-auth
     grep -qw "pamssh" /etc/pam.d/common-auth ||
         die "Could not configure PAM for ssh authentication!"
+    printf "session optional\tpam_exec.so stdout quiet $self pam_session\n" \
+        >> /etc/pam.d/common-session
 }
 
 pam_auth() {
     local pw_entry pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir \
         pw_shell password msg
 
+    pam_log
     # Verify we're being called from PAM and that the user is marked as an ssh user
     if [ -z "$PAM_USER" ] || ! pw_entry=$(getent passwd "$PAM_USER"); then
         die "User $PAM_USER doesn't exist"
@@ -44,7 +49,7 @@ EOF
     # $pw_dir must not be in use to be mounted; cd elsewhere
     cd /
 
-    # The ssh call logic is documented in ssh-askpass
+    # The ssh call logic is documented in ssh_askpass
     export DISPLAY=
     export SSH_ASKPASS="$0"
     set -- -F /dev/null -o UserKnownHostsFile="${0%/*}/ssh_known_hosts" \
@@ -56,8 +61,9 @@ EOF
         ssh -q "$@" "$pw_name@server" true && success=1
     else
         # Remove stale handles
-        fusermount -u "$pw_dir" 2>/dev/null || true
+        # TODO: it shouldn't be needed anymore: fusermount -u "$pw_dir" 2>/dev/null || true
         # SSHFS doesn't appear to support SSH_ASKPASS, but it can read stdin
+        # TODO: but why doesn't it read it directly from pam_exec?
         read -r password
         if sshfs -o password_stdin -o nonempty -o allow_other \
             "$@" "$pw_name@server:" "$pw_dir"
@@ -80,12 +86,25 @@ EOF
     fi
 }
 
-pam_close_session() {
-    fusermount -u TODO
+pam_log() {
+    {
+        id
+        env
+        ps faux
+        cat /proc/mounts
+    } > /tmp/pam_$PAM_TYPE.$$
+}
+
+pam_session() {
+    pam_log
+    case "$PAM_TYPE" in
+        close_session) unmount_sshfs; return 0 ;;
+        open_session) true; return 0 ;;  # TODO: autologin mount here?
+    esac
 }
 
 # SSH_ASKPASS implementation to transfer the PAM passphrase to SSH.
-# When pamssh is called without parameters, it just calls ssh_askpass,
+# When pamssh is called with unknown parameters, it just calls ssh_askpass,
 # in order to provide pamssh as a single script.
 # Very (!) long story short:
 # `pam_exec expose_authtok` places the user password in stdin.
@@ -101,6 +120,44 @@ ssh_askpass() {
     echo "$pass"
 }
 
+unmount_sshfs() {
+    local fd pw_entry pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir \
+        pw_shell password msg
+
+    # Verify we're being called from PAM and that the user is marked as an ssh user
+    if [ -z "$PAM_USER" ] || ! pw_entry=$(getent passwd "$PAM_USER"); then
+        die "User $PAM_USER doesn't exist"
+    fi
+    IFS=:
+    # Variable names from `man getpwnam`
+    read -r pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir pw_shell <<EOF
+$pw_entry
+EOF
+    test "$_OLDIFS" = "not set" && unset IFS || IFS="$_OLDIFS"
+
+    # If $HOME isn't sshfs, exit
+    grep -qs "$pw_dir fuse.sshfs" /proc/mounts || return 0
+
+    # Tell systemd not to wait nor to kill this:
+    systemd-run --scope --quiet "$(readlink -f "$0")" unmount_sshfs_stage2 "$PAM_USER" "$pw_dir" >/dev/null 2>/dev/null </dev/null &
+    # Without this sleep, systemd-run works 100% on vt2, 10% on GUI
+    sleep 0.1
+    return 0
+}
+
+# This is ran with no file descriptors open, to be properly backgrounded
+unmount_sshfs_stage2() {
+    # This isn't call from pam; just emulating to log it
+    PAM_TYPE=unmount
+    pam_log
+    # Give 5 seconds to systemd for process killing and cleanup
+    sleep 5
+    # If there are still user processes running, exit
+    # We could also check for /run/user/$pw_uid, but it needs loginctl running
+    pgrep -u "$1" && return 0
+    fusermount -u "$2"
+}
+
 main() {
     local func
 
@@ -110,12 +167,12 @@ main() {
             # SSH passes the prompt, `SSH_ASKPASS "ltsp@server's password: "`
             ssh_askpass
             ;;
-        install|pam_auth|pam_close_session)
+        install|pam_auth|pam_session|unmount_sshfs_stage2)
             func=$1
             shift
             $func "$@"
             ;;
-        *) die "Usage: $0 <install|pam_auth|pam_close_session> [params], not |$*|" ;;
+        *) die "Usage: $0 <install|pam_auth|pam_session> [params], not |$*|" ;;
     esac
 }
 

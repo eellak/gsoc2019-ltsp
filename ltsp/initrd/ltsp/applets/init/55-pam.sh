@@ -4,7 +4,9 @@
 
 pam_main() {
     rw /run/ltsp/applets/init/pamssh install
-    rw openvt nano /run/ltsp/applets/init/pamssh
-    rw openvt nano /etc/pam.d/common-auth
-    rw openvt bash -l
+    export LANG=el_GR.UTF-8
+    rw openvt -c 2 nano /run/ltsp/applets/init/pamssh
+    rw openvt -c 3 nano /etc/pam.d/common-auth
+    rw openvt -c 4 nano /etc/pam.d/common-session
+    rw openvt -c 5 bash -l
 }
