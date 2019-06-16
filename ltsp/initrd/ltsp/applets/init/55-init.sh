@@ -73,6 +73,7 @@ init_main() {
     printf "10.161.254.11\tserver\n" >> /etc/hosts
     # TODO: remove: disable autologin
     rw rm /etc/lightdm/lightdm.conf
+    #NFS_HOME=1
     if [ -n "$NFS_HOME" ]; then
         rw /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "/home"
     else
@@ -85,33 +86,6 @@ init_main() {
             rw busybox wget "http://10.161.254.11:8000/sshfs-$(uname -m)" -O /usr/bin/sshfs
             rw chmod +x /usr/bin/sshfs
         fi
-        rw mkdir -p /home/ltsp
-        rw chown ltsp:ltsp /home/ltsp
-        # Needed in Debian; built-in in Ubuntu
-        rw modprobe fuse
-        # Debian defaults to 600, Ubuntu to 666
-        rw chmod 666 /dev/fuse
-        echo "Run: su - ltsp; shome; (enter password); exit; exit"
-        # allow_other (or at least root) is required for lightdm to
-        # setup .Xauthority
-        # jessie-mate breaks with IdentityFile=/dev/null and shows:
-        #   Enter passphrase for key '/dev/null':
-        # It works with IdentityFile=/nonexistent
-        printf "#!/bin/sh
-cd /
-if sshfs ltsp@server: ~ -F /dev/null -o allow_other \
-    -o UserKnownHostsFile=/run/ltsp/applets/init/ssh_known_hosts \
-    -o IdentityFile=/nonexistent
-then
-    # We're trying a whole lot of different desktop environments;
-    # clear settings to make sure a clean environment works
-    echo 'Deleting LTSP user settings...'
-    rm -rf ~/.cache ~/.config ~/.dbus ~/.gconf ~/.local
-else
-    fusermount -u ~
-fi
-" > /usr/local/bin/shome
-        rw chmod +x /usr/local/bin/shome
     fi
     echo ========================
     mount

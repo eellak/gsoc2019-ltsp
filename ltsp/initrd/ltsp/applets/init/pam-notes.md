@@ -59,6 +59,18 @@ OOOOh wait, maybe on session_close we can run:
 systemd-run on-different-scope 'sleep 5; check if /run/user gone; fusermount -u`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+## To delete user settings, for benchmarking sshfs/nfs:
+find ~ -mindepth 1 -maxdepth 1 -name '.*' -exec rm -rf {} +
+sshfs first login: 105 sec?!!
+sshfs first logout: 30 sec, at_spi hang
+sshfs second login: 6 sec
+sshfs second logout: 1 sec
+(clear again)
+sshfs third login: 120 sec?!!
+sshfs third logout: 30 sec, at_spi hang
+-o kernel_cache => 114, meh
+nfs first login: 7 sec
+firefox: 6 sec
 
 ## pam_mount, autofs, ipsec
 Those don't sound very suitable; but here's a link for pam_mount and sshfs:
