@@ -25,6 +25,7 @@ GR_PASSWD = 1
 GR_GID = 2
 GR_MEM = 3
 
+
 class MergePw:
     """Merge passwd and group from source directory "sdir" to "ddir".
     "sur" is a regex of source user accounts to import;
@@ -38,7 +39,6 @@ class MergePw:
     Group regexes may also match system groups if they are prefixed with ":",
     e.g. ":sudo" matches all sudoers. Btw, ".*" = match all, "" = match none.
     All regexes default to none; except if sgr = "", then sur defaults to all.
-    TODO: I won't support ":ssh:" marking for groups, only for users, right?
     """
     def __init__(self, sdir, ddir, sur="", sgr="", dur="", dgr=""):
         self.spasswd, self.sgroup = self.read_dir(sdir)
@@ -50,6 +50,7 @@ class MergePw:
         self.sgr = sgr
         self.dur = dur
         self.dgr = dgr
+        # TODO: Read min_uid and max_uid from login.defs or default to 1000/60000.
         self.uid_min = 1000
         self.uid_max = 60000
         self.gid_min = 1000
@@ -73,18 +74,15 @@ class MergePw:
         # It's used to construct pwe[PW_GRNAME] and discarded after that
         g2n = {}
         # group is a dictionary with keys=GR_NAME string, values=GR_ENTRY list
-        # Note that group["user"][GR_MEM] is a list of members (strings)
-        # TODO dictionary to map from group uid to name?
+        # Note that group["user"][GR_MEM] is a set of members (strings)
         group = {}
         with open("{}/group".format(sdir), "r") as file:
             for line in file.readlines():
                 gr_entry = line.strip().split(":")
-                gr_entry.append(False)  # TODO: GR_MARK
                 gr_entry[GR_GID] = int(gr_entry[GR_GID])
                 # Use set for group members, to avoid duplicates
-                gr_entry[GR_MEM] = set()
                 # Keep only non-empty group values
-                gr_entry[GR_MEM].update(
+                gr_entry[GR_MEM] = set(
                     [x for x in gr_entry[GR_MEM].split(",") if x])
                 group[gr_entry[GR_NAME]] = gr_entry
                 # Construct g2n
@@ -100,6 +98,20 @@ class MergePw:
                 group[grn][GR_MEM].add(pwn)
         return (passwd, group)
 
+    @staticmethod
+    def save_dir(passwd, group, ddir="/tmp"):
+        """Save the destination in ddir/passwd and ddir/group"""
+        with open("{}/passwd".format(ddir), "w") as file:
+            for pwe in passwd.values():
+                file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
+                    pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
+                    pwe[PW_UID], pwe[PW_GID], pwe[PW_GECOS], pwe[PW_DIR],
+                    pwe[PW_SHELL]))
+        with open("{}/group".format(ddir), "w") as file:
+            for gre in group.values():
+                file.write("{}:{}:{}:{}\n".format(gre[GR_NAME], gre[GR_PASSWD],
+                                           gre[GR_GID], ",".join(gre[GR_MEM])))
+
     def mark_users(self, xpasswd, xgroup, xur, xgr):
         """Mark users in [sd]passwd that match the [sd]ur/[sd]gr regexes.
         Called twice, once for source and once for destination."""
@@ -107,14 +119,12 @@ class MergePw:
         if xgr:
             # grn = GRoup Name, gre = GRoup Entry
             for grn, gre in xgroup.items():
-                # TODO: del: if gre[GR_GID] < self.gid_min or gre[GR_GID] > self.gid_max:
                 if not self.gid_min <= gre[GR_GID] <= self.gid_max:
                     # Match ":sudo"; don't match "s.*"
                     # grnm = modified GRoup Name used for Matching
                     grnm = ":{}".format(grn)
                 else:
                     grnm = grn
-                # TODO: compile regexes for speed? it says not needed for a few?
                 # re.fullmatch needs Python 3.4 (xenial+ /jessie+)
                 if not re.fullmatch(xgr, grnm):
                     continue
@@ -123,35 +133,18 @@ class MergePw:
         # Mark all users that match xur
         if xur:
             for pwn, pwe in xpasswd.items():
-                # TODO: del: if pwe[PW_UID] < self.uid_min or pwe[PW_UID] > self.uid_max:
                 if not self.uid_min <= pwe[PW_UID] <= self.uid_max:
                     continue
                 if re.fullmatch(xur, pwn):
                     xpasswd[pwn][PW_MARK] = True
+        print("Marked users for |{}|{}|:".format(xur, xgr))
+        for pwn, pwe in xpasswd.items():
+            if pwe[PW_MARK]:
+                print("", pwn, end="")
+        print
 
     def merge(self):
-        """Merge while storing the result to dpasswd/dgroup
-        Algorithm:
-        * Read min_uid and max_uid from login.defs or default to 1000/60000.
-        * Convert sgr and dgr to list of users.
-        * Remove all dest (non-system implied) users except dur/dgr.
-          Don't bother updating dest groups at this point.
-        * Loop over dest groups; remove non existing users; remove empty groups.
-          No collisions so far.
-        * For each source user that matches,
-          - migrate uid/gid if it's available; error otherwise;
-            for the special case of many users with the same gid, if the
-            destination group name/gid matches the source, add user and succeed
-        * For each source group that now isn't a user gid,
-          - if it's non-system, migrate if possible, warn otherwise.
-          - if it's system group, migrate if:
-            + a target account user needs it,
-            + the group name doesn't exist in the target,
-            + the group gid is free (e.g. NFS group shares;
-              no point in different gids); warn otherwise.
-        TODO: to sort group:
-            sort /etc/group -nt: -k 3,3
-        """
+        """Merge while storing the result to dpasswd/dgroup"""
         # Mark all destination users that match dur/dgr
         # Note that non-system groups that do match dgr
         # are discarded in the end if they don't have any members
@@ -161,7 +154,6 @@ class MergePw:
         print("Removed destination users:")
         for pwn in list(self.dpasswd):  # list() as we're removing items
             pwe = self.dpasswd[pwn]
-            # TODO: del: if pwe[PW_UID] < self.uid_min or pwe[PW_UID] > self.uid_max:
             if not self.uid_min <= pwe[PW_UID] <= self.uid_max:
                 continue
             if not self.dpasswd[pwn][PW_MARK]:
@@ -175,7 +167,6 @@ class MergePw:
         print("Removed destination groups:")
         for grn in list(self.dgroup):  # list() as we're removing items
             gre = self.dgroup[grn]
-            # TODO: del: if gre[GR_GID] < self.gid_min or gre[GR_GID] > self.gid_max:
             if not self.gid_min <= gre[GR_GID] <= self.gid_max:
                 continue
             remove = True
@@ -186,6 +177,7 @@ class MergePw:
             if remove:
                 print("", grn, end="")
                 del self.dgroup[grn]
+        print()
 
         # Mark all source users that match sur/sgr
         self.mark_users(self.spasswd, self.sgroup, self.sur, self.sgr)
@@ -229,29 +221,48 @@ class MergePw:
                 # Same gids, just merge members without a warning
                 self.dgroup[grn][GR_MEM].update(gre[GR_MEM])
             else:
-                print("Warning: group {} has sgid={}, dgid={}; ".
-                      format(grn, gre[GR_GID], self.dgroup[grn][GR_GID],
+                print(" [Warning: group {} has sgid={}, dgid={}; ".
+                      format(grn, gre[GR_GID], self.dgroup[grn][GR_GID]),
                       end="")
                 # If gids are different, keep sgid if dgid is not a system one
-                if self.min_gid <= self.dgroup[grn][GR_GID] <= self.max_gid:
+                if self.gid_min <= self.dgroup[grn][GR_GID] <= self.gid_max:
                     self.dgroup[grn][GR_GID] = grn[GR_GID]
-            # In all cases, source password has priority
+                    print("keeping sgid]", end="")
+                else:
+                    print("keeping dgid]", end="")
+            # In all cases, keep source group password
             self.dgroup[grn][GR_PASSWD] = gre[GR_PASSWD]
             print("", grn, end="")
         print()
 
-        # Remove all unknown members from destination groups
+        # Remove all unknown members from destination groups,
+        # remove primary gids from group members,
         # and remove non-system groups that have no members
+        umem = set()
+        print("Removed unknown groups:")
+        for grn in list(self.dgroup):  # list() as we're removing items
+            gre = self.dgroup[grn]
+            for grm in list(gre[GR_MEM]):
+                if grm in self.dpasswd and \
+                        self.dpasswd[grm][PW_GID] != gre[GR_GID]:
+                    continue
+                gre[GR_MEM].remove(grm)
+                umem.add(grm)
+            if not gre[GR_MEM]:
+                if self.gid_min <= gre[GR_GID] <= self.gid_max:
+                    del self.sgroup[grn]
+                    print("", grn, end="")
+        print()
+        print("Removed unknown members:")
+        print(umem)
+        print()
 
 def main():
     """Run the module from the command line"""
-    import json
-
     mpw = MergePw("/etc", "/srv/ltsp/bionic-nfs/etc",
                   sur="^(?!administrator)(a|b|c).*", dur="f.*")
     mpw.merge()
-    # print(json.dumps(mpw.dpasswd, indent=4))
-    # print(json.dumps(mpw.dgroup, indent=4))
+    mpw.save_dir(mpw.dpasswd, mpw.dgroup)
 
 
 if __name__ == "__main__":
