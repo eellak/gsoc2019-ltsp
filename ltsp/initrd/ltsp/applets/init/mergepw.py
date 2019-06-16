@@ -3,8 +3,7 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Provide PAM authentication to a server via ssh and optionally $HOME with sshfs.
-Also, provide an easy command for account merging (passwd/group).
+Merge passwd and group from source directory "sdir" to "ddir"
 """
 import re
 
@@ -109,8 +108,9 @@ class MergePw:
                     pwe[PW_SHELL]))
         with open("{}/group".format(ddir), "w") as file:
             for gre in group.values():
-                file.write("{}:{}:{}:{}\n".format(gre[GR_NAME], gre[GR_PASSWD],
-                                           gre[GR_GID], ",".join(gre[GR_MEM])))
+                file.write("{}:{}:{}:{}\n".format(
+                    gre[GR_NAME], gre[GR_PASSWD], gre[GR_GID],
+                    ",".join(gre[GR_MEM])))
 
     def mark_users(self, xpasswd, xgroup, xur, xgr):
         """Mark users in [sd]passwd that match the [sd]ur/[sd]gr regexes.
@@ -141,7 +141,7 @@ class MergePw:
         for pwn, pwe in xpasswd.items():
             if pwe[PW_MARK]:
                 print("", pwn, end="")
-        print
+        print()
 
     def merge(self):
         """Merge while storing the result to dpasswd/dgroup"""
