@@ -33,6 +33,9 @@ auth\t\[success=1 default=ignore\]\tpam_exec.so seteuid expose_authtok stdout qu
         printf "ICEAUTHORITY\tDEFAULT=\${XDG_RUNTIME_DIR}/.ICEauthority" \
             >> /etc/security/pam_env.conf
     fi
+    # TODO: ssh -X user@localhost from an ltsp client fails too:
+    # /usr/bin/xauth: timeout in locking authority file /home/user/.Xauthority
+    # It's probably not important; plain `xhost +local:` is OK for DIRECTX.
 }
 
 pam_auth() {

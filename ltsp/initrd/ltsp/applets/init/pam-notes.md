@@ -59,6 +59,17 @@ OOOOh wait, maybe on session_close we can run:
 systemd-run on-different-scope 'sleep 5; check if /run/user gone; fusermount -u`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+## Password caching
+When ssh authentication succeeds, I could store the hash to shadow!!!,
+so that if "offline" is detected, the user would authenticate locally.
+This would be useful for ...roaming/laptop ltsp clients with local disk,
+squashfs mirror locally, ...
+Nope. It would be better if it's a local account, not an :ssh: one.
+Use case:
+administrator = teacher can take the school laptop and work at home,
+yet he'd allow :ssh: student accounts to work via sshfs at school.
+We actually don't want caching there.
+
 ## To delete user settings, for benchmarking sshfs/nfs:
 find ~ -mindepth 1 -maxdepth 1 -name '.*' -exec rm -rf {} +
 sshfs first login: 105 sec?!!
