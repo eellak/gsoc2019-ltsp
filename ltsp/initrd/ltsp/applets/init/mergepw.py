@@ -16,7 +16,7 @@ Options:
   --sgr: a regex of source groups; their member users are also imported
   --dur: a regex of destination user accounts to preserve
   --dgr: a regex of destination groups; their member users are also preserved
-  -q,--quiet: only show warnings and errors
+  -q,--quiet: only show warnings and errors, not informational messages
 
 If UIDs or primary GIDs collide in the final merging, execution is aborted.
 Using a regex allows one to define e.g.: "^(?!administrator)(a|b|c).*",
@@ -29,6 +29,7 @@ from datetime import datetime
 import getopt
 import os
 import re
+import shutil
 import sys
 
 # Names are from `man getpwent/getgrent/getspent/getsgent`
@@ -71,10 +72,21 @@ SG_DEFS = ["*", ""]
 
 QUIET = False
 
+
 def log(*args, end='\n', error=False):
     """Print errors to stderr; print everything if --quiet wasn't specified"""
     if error or not QUIET:
         print(*args, end=end, file=sys.stderr)
+
+
+def create(name, mode):
+    """For better security, create files directly with the correct mode"""
+    # If the file already exists, delete it, otherwise it gets the old mode
+    if os.path.lexists(name):
+        os.remove(name)
+    fds = os.open(name, os.O_WRONLY | os.O_CREAT, mode)
+    return open(fds, "w")
+
 
 class MergePw:
     """Merge passwd and group from source directory "sdir" to "ddir"."""
@@ -97,7 +109,7 @@ class MergePw:
         with open("/etc/login.defs", "r") as file:
             for line in file.readlines():
                 words = line.split()
-                if len(words) == 0:
+                if not words:
                     continue
                 if words[0] == "UID_MIN":
                     self.uid_min = int(words[1])
@@ -152,7 +164,7 @@ class MergePw:
         for pwn, pwe in passwd.items():
             grn = g2n[pwe[PW_GID]]
             pwe[PW_GRNAME] = grn
-            if not pwn in group[grn][GR_MEM]:
+            if pwn not in group[grn][GR_MEM]:
                 group[grn][GR_MEM].add(pwn)
         # If shadow exists and is accessible, include its information
         if os.access("{}/shadow".format(sdir), os.R_OK):
@@ -207,11 +219,8 @@ class MergePw:
                 if re.fullmatch(xur, pwn):
                     xpasswd[pwn][PW_MARK] = True
         for pwn, pwe in xpasswd.items():
-            try:
-                if pwe[PW_MARK]:
-                    log("", pwn, end="")
-            except:
-                print("ERRRROR", pwe)
+            if pwe[PW_MARK]:
+                log("", pwn, end="")
         log()
 
     def merge(self):
@@ -336,26 +345,32 @@ class MergePw:
 
     def save(self):
         """Save the merged result in mdir/{passwd,group,shadow,gshadow}"""
-        with open("{}/passwd".format(self.mdir), "w") as file:
+        with create("{}/passwd".format(self.mdir), 0o644) as file:
             for pwe in self.dpasswd.values():
                 file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
                     pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
                     *pwe[PW_UID:PW_SHELL+1]))
-        with open("{}/group".format(self.mdir), "w") as file:
+        with create("{}/group".format(self.mdir), 0o644) as file:
             for gre in self.dgroup.values():
                 file.write("{}:{}:{}:{}\n".format(
                     gre[GR_NAME], gre[GR_PASSWD], gre[GR_GID],
                     ",".join(gre[GR_MEM])))
-        with open("{}/shadow".format(self.mdir), "w") as file:
+        with create("{}/shadow".format(self.mdir), 0o640) as file:
             for pwe in self.dpasswd.values():
                 file.write("{}:{}:{}:{}:{}:{}:{}:{}:{}\n".format(
                     pwe[PW_NAME], *pwe[SP_PWDP:SP_FLAG+1]))
-        with open("{}/gshadow".format(self.mdir), "w") as file:
+        with create("{}/gshadow".format(self.mdir), 0o640) as file:
             for gre in self.dgroup.values():
                 file.write("{}:{}:{}:{}\n".format(
                     gre[GR_NAME], *gre[SG_PASSWD:SG_ADM+1],
                     ",".join(gre[GR_MEM])))
-        # TODO: chmod/chown
+        if os.geteuid() == 0:
+            shutil.chown("{}/shadow".format(self.mdir), group="shadow")
+            shutil.chown("{}/gshadow".format(self.mdir), group="shadow")
+        else:
+            log("Need root permissions to chown dst files to root:shadow",
+                error=True)
+
 
 def main(argv):
     """Run the module from the command line"""
