@@ -25,7 +25,9 @@ Group regexes may also match system groups if they are prefixed with ":",
 e.g. ":sudo" matches all sudoers. Btw, ".*" = match all, "" = match none.
 All regexes default to none; except if sgr = "", then sur defaults to all.
 """
+from datetime import datetime
 import getopt
+import os
 import re
 import sys
 
@@ -39,27 +41,33 @@ PW_GID = 3
 PW_GECOS = 4
 PW_DIR = 5
 PW_SHELL = 6
-PW_GRNAME = 7
-PW_MARK = 8
-# SP_NAMP is the same as GR_NAME so we ignore it
-SP_PWDP = 9
-SP_LSTCHG = 10
-SP_MIN = 11
-SP_MAX = 12
-SP_WARN = 13
-SP_INACT = 14
-SP_EXPIRE = 15
-SP_FLAG = 16
+# SP_NAMP is the same as PW_NAME so we ignore it
+SP_PWDP = 7
+SP_LSTCHG = 8
+SP_MIN = 9
+SP_MAX = 10
+SP_WARN = 11
+SP_INACT = 12
+SP_EXPIRE = 13
+SP_FLAG = 14
+# These additional fields are for internal use
+PW_GRNAME = 15  # The group name of the user
+PW_MARK = 16  # Boolean, True if the user is marked to import/preserve
+# Default values when source shadow doesn't exist:
+SP_DEFS = ["*", (datetime.utcnow() - datetime(1970, 1, 1)).days,
+           0, 99999, 7, "", "", "", "", False]
 GR_NAME = 0
 GR_PASSWD = 1
 GR_GID = 2
 GR_MEM = 3
 # SG_NAMP is the same as GR_NAME so we ignore it
 SG_PASSWD = 4
-SG_ADM = 5
 # Currently we process SG_ADM (group administrator list) as a simple string;
-# file a bug report if you need it properly merged
+# file a bug report if you need it properly merged:
+SG_ADM = 5
 # SG_MEM is the same as GR_MEM so we ignore it
+# Default values when source gshadow doesn't exist:
+SG_DEFS = ["*", ""]
 
 QUIET = False
 
@@ -89,14 +97,16 @@ class MergePw:
 
     @staticmethod
     def read_dir(sdir):
-        """Read passwd and group files into dictionaries"""
+        """Read sdir/{passwd,group,shadow,gshadow} into dictionaries"""
         # passwd is a dictionary with keys=PW_NAME string, values=PW_ENTRY list
         passwd = {}
         with open("{}/passwd".format(sdir), "r") as file:
             for line in file.readlines():
                 pwe = line.strip().split(":")
-                pwe.append("")  # PW_GRNAME, updated below
-                pwe.append(False)  # PW_MARK
+                if len(pwe) != 7:
+                    raise ValueError("Invalid passwd line:\n{}".format(line))
+                # Add defaults in case shadow doesn't exist
+                pwe += SP_DEFS
                 # Convert uid/gid to ints to be able to do comparisons
                 pwe[PW_UID] = int(pwe[PW_UID])
                 pwe[PW_GID] = int(pwe[PW_GID])
@@ -109,15 +119,19 @@ class MergePw:
         group = {}
         with open("{}/group".format(sdir), "r") as file:
             for line in file.readlines():
-                gr_entry = line.strip().split(":")
-                gr_entry[GR_GID] = int(gr_entry[GR_GID])
+                gre = line.strip().split(":")
+                if len(gre) != 4:
+                    raise ValueError("Invalid group line:\n{}".format(line))
+                # Add defaults in case gshadow doesn't exist
+                gre += SG_DEFS
+                gre[GR_GID] = int(gre[GR_GID])
                 # Use set for group members, to avoid duplicates
                 # Keep only non-empty group values
-                gr_entry[GR_MEM] = set(
-                    [x for x in gr_entry[GR_MEM].split(",") if x])
-                group[gr_entry[GR_NAME]] = gr_entry
+                gre[GR_MEM] = set(
+                    [x for x in gre[GR_MEM].split(",") if x])
+                group[gre[GR_NAME]] = gre
                 # Construct g2n
-                g2n[gr_entry[GR_GID]] = gr_entry[GR_NAME]
+                g2n[gre[GR_GID]] = gre[GR_NAME]
         # Usually system groups are like: "saned:x:121:"
         # while user groups frequently are like: ltsp:x:1000:ltsp
         # For simplicity, explicitly mention the primary user for all groups
@@ -127,6 +141,31 @@ class MergePw:
             pwe[PW_GRNAME] = grn
             if not pwn in group[grn][GR_MEM]:
                 group[grn][GR_MEM].add(pwn)
+        # If shadow exists and is accessible, include its information
+        if os.access("{}/shadow".format(sdir), os.R_OK):
+            with open("{}/shadow".format(sdir), "r") as file:
+                for line in file.readlines():
+                    pwe = line.strip().split(":")
+                    if len(pwe) != 9:
+                        # It's invalid; displaying it isn't a security issue
+                        raise ValueError(
+                            "Invalid shadow line:\n{}".format(line))
+                    if pwe[0] in passwd:
+                        # List slice
+                        passwd[pwe[0]][SP_PWDP:SP_FLAG+1] = pwe[1:9]
+        # If gshadow exists and is accessible, include its information
+        if os.access("{}/gshadow".format(sdir), os.R_OK):
+            with open("{}/gshadow".format(sdir), "r") as file:
+                for line in file.readlines():
+                    gre = line.strip().split(":")
+                    if len(gre) != 4:
+                        # It's invalid; displaying it isn't a security issue
+                        raise ValueError(
+                            "Invalid gshadow line:\n{}".format(line))
+                    if gre[0] in group:
+                        # List slice
+                        group[gre[0]][SG_PASSWD:SG_ADM+1] = gre[1:3]
+
         return (passwd, group)
 
     def mark_users(self, xpasswd, xgroup, xur, xgr):
@@ -155,8 +194,11 @@ class MergePw:
                 if re.fullmatch(xur, pwn):
                     xpasswd[pwn][PW_MARK] = True
         for pwn, pwe in xpasswd.items():
-            if pwe[PW_MARK]:
-                log("", pwn, end="")
+            try:
+                if pwe[PW_MARK]:
+                    log("", pwn, end="")
+            except:
+                print("ERRRROR", pwe)
         log()
 
     def merge(self):
@@ -285,13 +327,22 @@ class MergePw:
             for pwe in self.dpasswd.values():
                 file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
                     pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
-                    pwe[PW_UID], pwe[PW_GID], pwe[PW_GECOS], pwe[PW_DIR],
-                    pwe[PW_SHELL]))
+                    *pwe[PW_UID:PW_SHELL+1]))
         with open("{}/group".format(self.mdir), "w") as file:
             for gre in self.dgroup.values():
                 file.write("{}:{}:{}:{}\n".format(
                     gre[GR_NAME], gre[GR_PASSWD], gre[GR_GID],
                     ",".join(gre[GR_MEM])))
+        with open("{}/shadow".format(self.mdir), "w") as file:
+            for pwe in self.dpasswd.values():
+                file.write("{}:{}:{}:{}:{}:{}:{}:{}:{}\n".format(
+                    pwe[PW_NAME], *pwe[SP_PWDP:SP_FLAG+1]))
+        with open("{}/gshadow".format(self.mdir), "w") as file:
+            for gre in self.dgroup.values():
+                file.write("{}:{}:{}:{}\n".format(
+                    gre[GR_NAME], *gre[SG_PASSWD:SG_ADM+1],
+                    ",".join(gre[GR_MEM])))
+        # TODO: chmod/chown
 
 def main(argv):
     """Run the module from the command line"""
