@@ -89,11 +89,24 @@ class MergePw:
         self.sgr = sgr
         self.dur = dur
         self.dgr = dgr
-        # TODO: Read min_uid and max_uid from login.defs or default to 1000/60000.
+        # Read [ug]id min/max from login.defs or default to 1000/60000
         self.uid_min = 1000
         self.uid_max = 60000
         self.gid_min = 1000
         self.gid_max = 60000
+        with open("/etc/login.defs", "r") as file:
+            for line in file.readlines():
+                words = line.split()
+                if len(words) == 0:
+                    continue
+                if words[0] == "UID_MIN":
+                    self.uid_min = int(words[1])
+                elif words[0] == "UID_MAX":
+                    self.uid_max = int(words[1])
+                elif words[0] == "GID_MIN":
+                    self.gid_min = int(words[1])
+                elif words[0] == "GID_MAX":
+                    self.gid_max = int(words[1])
 
     @staticmethod
     def read_dir(sdir):
