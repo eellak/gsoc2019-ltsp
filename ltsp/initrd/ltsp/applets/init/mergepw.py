@@ -3,11 +3,33 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Merge passwd and group from source directory "sdir" to "ddir"
-"""
-import re
+Usage: mergepw [--sur=] [--sgr=] [--dur=] [--dgr=] sdir ddir mdir
 
-# Names are from `man getpwent/getgrent`
+Merge specified users and groups as follows:
+ * Read source directory passwd, group and *optionally* shadow and gshadow;
+   if source shadow files are missing fill them with default values
+ * Read destination directory passwd, group, shadow and gshadow
+ * Merge them and write the result to the directory "mdir"
+
+Options:
+  --sur: a regex of source user accounts to import
+  --sgr: a regex of source groups; their member users are also imported
+  --dur: a regex of destination user accounts to preserve
+  --dgr: a regex of destination groups; their member users are also preserved
+  -q,--quiet: only show warnings and errors
+
+If UIDs or primary GIDs collide in the final merging, execution is aborted.
+Using a regex allows one to define e.g.: "^(?!administrator)(a|b|c).*",
+which matches accounts starting from a, b, or c, but not administrator.
+Group regexes may also match system groups if they are prefixed with ":",
+e.g. ":sudo" matches all sudoers. Btw, ".*" = match all, "" = match none.
+All regexes default to none; except if sgr = "", then sur defaults to all.
+"""
+import getopt
+import re
+import sys
+
+# Names are from `man getpwent/getgrent/getspent/getsgent`
 # PW_GRNAME is the name of the primary group
 # PW_MARK is True if this user must be preserved
 PW_NAME = 0
@@ -19,29 +41,39 @@ PW_DIR = 5
 PW_SHELL = 6
 PW_GRNAME = 7
 PW_MARK = 8
+# SP_NAMP is the same as GR_NAME so we ignore it
+SP_PWDP = 9
+SP_LSTCHG = 10
+SP_MIN = 11
+SP_MAX = 12
+SP_WARN = 13
+SP_INACT = 14
+SP_EXPIRE = 15
+SP_FLAG = 16
 GR_NAME = 0
 GR_PASSWD = 1
 GR_GID = 2
 GR_MEM = 3
+# SG_NAMP is the same as GR_NAME so we ignore it
+SG_PASSWD = 4
+SG_ADM = 5
+# Currently we process SG_ADM (group administrator list) as a simple string;
+# file a bug report if you need it properly merged
+# SG_MEM is the same as GR_MEM so we ignore it
 
+QUIET = False
+
+def log(*args, end='\n', error=False):
+    """Print errors to stderr; print everything if --quiet wasn't specified"""
+    if error or not QUIET:
+        print(*args, end=end, file=sys.stderr)
 
 class MergePw:
-    """Merge passwd and group from source directory "sdir" to "ddir".
-    "sur" is a regex of source user accounts to import;
-    "sgr" is a regex of source groups to import;
-    "dur" is a regex of destination user accounts to preserve;
-    "dgr" is a regex of destination groups to preserve;
-    "sur" is merged with "sgr", and "dur" is merged with "dgr",
-    but it's considered an error if there are collisions for the final merging.
-    Using a regex allows one to define e.g.: "^(?!administrator)(a|b|c).*"
-    which matches accounts starting from a, b, or c, but not administrator.
-    Group regexes may also match system groups if they are prefixed with ":",
-    e.g. ":sudo" matches all sudoers. Btw, ".*" = match all, "" = match none.
-    All regexes default to none; except if sgr = "", then sur defaults to all.
-    """
-    def __init__(self, sdir, ddir, sur="", sgr="", dur="", dgr=""):
+    """Merge passwd and group from source directory "sdir" to "ddir"."""
+    def __init__(self, sdir, ddir, mdir, sur="", sgr="", dur="", dgr=""):
         self.spasswd, self.sgroup = self.read_dir(sdir)
         self.dpasswd, self.dgroup = self.read_dir(ddir)
+        self.mdir = mdir
         if not sur and not sgr:
             self.sur = ".*"
         else:
@@ -97,21 +129,6 @@ class MergePw:
                 group[grn][GR_MEM].add(pwn)
         return (passwd, group)
 
-    @staticmethod
-    def save_dir(passwd, group, ddir="/tmp"):
-        """Save the destination in ddir/passwd and ddir/group"""
-        with open("{}/passwd".format(ddir), "w") as file:
-            for pwe in passwd.values():
-                file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
-                    pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
-                    pwe[PW_UID], pwe[PW_GID], pwe[PW_GECOS], pwe[PW_DIR],
-                    pwe[PW_SHELL]))
-        with open("{}/group".format(ddir), "w") as file:
-            for gre in group.values():
-                file.write("{}:{}:{}:{}\n".format(
-                    gre[GR_NAME], gre[GR_PASSWD], gre[GR_GID],
-                    ",".join(gre[GR_MEM])))
-
     def mark_users(self, xpasswd, xgroup, xur, xgr):
         """Mark users in [sd]passwd that match the [sd]ur/[sd]gr regexes.
         Called twice, once for source and once for destination."""
@@ -137,34 +154,35 @@ class MergePw:
                     continue
                 if re.fullmatch(xur, pwn):
                     xpasswd[pwn][PW_MARK] = True
-        print("Marked users for |{}|{}|:".format(xur, xgr))
         for pwn, pwe in xpasswd.items():
             if pwe[PW_MARK]:
-                print("", pwn, end="")
-        print()
+                log("", pwn, end="")
+        log()
 
     def merge(self):
         """Merge while storing the result to dpasswd/dgroup"""
         # Mark all destination users that match dur/dgr
         # Note that non-system groups that do match dgr
         # are discarded in the end if they don't have any members
+        log("Marked destination users for regexes '{}', '{}':".format(
+            self.dur, self.dgr))
         self.mark_users(self.dpasswd, self.dgroup, self.dur, self.dgr)
 
         # Remove the unmarked destination users
-        print("Removed destination users:")
+        log("Removed destination users:")
         for pwn in list(self.dpasswd):  # list() as we're removing items
             pwe = self.dpasswd[pwn]
             if not self.uid_min <= pwe[PW_UID] <= self.uid_max:
                 continue
             if not self.dpasswd[pwn][PW_MARK]:
-                print("", pwn, end="")
+                log("", pwn, end="")
                 del self.dpasswd[pwn]
-        print()
+        log()
 
         # Remove the destination non-system groups that are empty,
         # to allow source groups with the same gid to be merged
         # Do not delete primary groups
-        print("Removed destination groups:")
+        log("Removed destination groups:")
         for grn in list(self.dgroup):  # list() as we're removing items
             gre = self.dgroup[grn]
             if not self.gid_min <= gre[GR_GID] <= self.gid_max:
@@ -175,38 +193,40 @@ class MergePw:
                     remove = False
                     break  # A member exists; continue with the next group
             if remove:
-                print("", grn, end="")
+                log("", grn, end="")
                 del self.dgroup[grn]
-        print()
+        log()
 
         # Mark all source users that match sur/sgr
+        log("Marked source users for regexes '{}', '{}':".format(
+            self.sur, self.sgr))
         self.mark_users(self.spasswd, self.sgroup, self.sur, self.sgr)
-        print()
 
         # Transfer all the marked users and their primary groups
         # Collisions in this step are considered fatal errors
-        print("Transferred users:")
+        log("Transferred users:")
         for pwn, pwe in self.spasswd.items():
             if not pwe[PW_MARK]:
                 continue
             if pwn in self.dpasswd:
                 if pwe[PW_UID] != self.dpasswd[PW_UID] or \
                         pwe[PW_GID] != self.dpasswd[PW_GID]:
-                    raise ValueError("PW_UID {} exists in destination".
-                                     format(pwn))
+                    raise ValueError(
+                        "PW_[UG]ID for {} exists in destination".format(pwn))
             self.dpasswd[pwn] = pwe
             grn = pwe[PW_GRNAME]
             if grn in self.dgroup:
                 if pwe[PW_GID] != self.dgroup[grn][GR_GID]:
-                    raise ValueError("PW_GRNAME {} exists in destination".
-                                     format(grn))
+                    raise ValueError(
+                        "GR_GID for {} exists in destination".format(grn))
             self.dgroup[grn] = self.sgroup[grn]
-            print("", pwn, end="")
-        print()
+            log("", pwn, end="")
+        log()
 
         # Try to transfer all the additional groups that have marked members,
-        # both system and non-system ones, and warn on collisions.
-        print("Transferred groups:")
+        # both system and non-system ones, and warn on collisions
+        log("Transferred groups:")
+        needeol = False
         for grn, gre in self.sgroup.items():
             transfer = False
             for grm in gre[GR_MEM]:
@@ -221,25 +241,26 @@ class MergePw:
                 # Same gids, just merge members without a warning
                 self.dgroup[grn][GR_MEM].update(gre[GR_MEM])
             else:
-                print(" [Warning: group {} has sgid={}, dgid={}; ".
-                      format(grn, gre[GR_GID], self.dgroup[grn][GR_GID]),
-                      end="")
+                log(" [WARNING: group {} has sgid={}, dgid={}; ".
+                    format(grn, gre[GR_GID], self.dgroup[grn][GR_GID]),
+                    end="", error=True)
                 # If gids are different, keep sgid if dgid is not a system one
                 if self.gid_min <= self.dgroup[grn][GR_GID] <= self.gid_max:
                     self.dgroup[grn][GR_GID] = grn[GR_GID]
-                    print("keeping sgid]", end="")
+                    log("keeping sgid]", end="", error=True)
                 else:
-                    print("keeping dgid]", end="")
+                    log("keeping dgid]", end="", error=True)
+                needeol = True
             # In all cases, keep source group password
             self.dgroup[grn][GR_PASSWD] = gre[GR_PASSWD]
-            print("", grn, end="")
-        print()
+            log("", grn, end="")
+        log(error=needeol)
 
         # Remove all unknown members from destination groups,
         # remove primary gids from group members,
         # and remove non-system groups that have no members
         umem = set()
-        print("Removed unknown groups:")
+        log("Removed unknown groups:")
         for grn in list(self.dgroup):  # list() as we're removing items
             gre = self.dgroup[grn]
             for grm in list(gre[GR_MEM]):
@@ -251,19 +272,51 @@ class MergePw:
             if not gre[GR_MEM]:
                 if self.gid_min <= gre[GR_GID] <= self.gid_max:
                     del self.sgroup[grn]
-                    print("", grn, end="")
-        print()
-        print("Removed unknown members:")
-        print(umem)
-        print()
+                    log("", grn, end="")
+        log()
+        log("Removed unknown members:")
+        for grm in umem:
+            log("", grm, end="")
+        log()
 
-def main():
+    def save(self):
+        """Save the merged result in mdir/{passwd,group,shadow,gshadow}"""
+        with open("{}/passwd".format(self.mdir), "w") as file:
+            for pwe in self.dpasswd.values():
+                file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
+                    pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
+                    pwe[PW_UID], pwe[PW_GID], pwe[PW_GECOS], pwe[PW_DIR],
+                    pwe[PW_SHELL]))
+        with open("{}/group".format(self.mdir), "w") as file:
+            for gre in self.dgroup.values():
+                file.write("{}:{}:{}:{}\n".format(
+                    gre[GR_NAME], gre[GR_PASSWD], gre[GR_GID],
+                    ",".join(gre[GR_MEM])))
+
+def main(argv):
     """Run the module from the command line"""
-    mpw = MergePw("/etc", "/srv/ltsp/bionic-nfs/etc",
-                  sur="^(?!administrator)(a|b|c).*", dur="f.*")
+    global QUIET
+    try:
+        opts, args = getopt.getopt(
+            argv[1:], "q", ["quiet", "sur=", "sgr=", "dur=", "dgr="])
+    except getopt.GetoptError as err:
+        print("Error in command line parameters:", err, file=sys.stderr)
+        args = []  # Trigger line below
+    if len(args) != 3:
+        print(__doc__.strip())
+        sys.exit(1)
+    dopts = {}
+    for key, val in opts:
+        if key == "-q" or key == "--quiet":
+            QUIET = True
+        elif key.startswith("--"):
+            dopts[key[2:]] = val
+        else:
+            raise ValueError("Unknown parameter: ", key, val)
+    mpw = MergePw(args[0], args[1], args[2], **dopts)
     mpw.merge()
-    mpw.save_dir(mpw.dpasswd, mpw.dgroup)
+    mpw.save()
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
