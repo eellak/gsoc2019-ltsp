@@ -3,20 +3,18 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 """
-Usage: mergepw [--sur=] [--sgr=] [--dur=] [--dgr=] sdir ddir mdir
+Usage: pwmerge [--sur=] [--sgr=] [--dur=] [--dgr=] [-l] [-q] sdir ddir mdir
 
-Merge specified users and groups as follows:
- * Read source directory passwd, group and *optionally* shadow and gshadow;
-   if source shadow files are missing fill them with default values
- * Read destination directory passwd, group, shadow and gshadow
- * Merge them and write the result to the directory "mdir"
+Merge passwd, group and optionally shadow and gshadow from source directory
+sdir and destination directory ddir into a merge directory mdir.
 
 Options:
-  --sur: a regex of source user accounts to import
-  --sgr: a regex of source groups; their member users are also imported
-  --dur: a regex of destination user accounts to preserve
-  --dgr: a regex of destination groups; their member users are also preserved
-  -q,--quiet: only show warnings and errors, not informational messages
+  --sur=regex: source user accounts to import
+  --sgr=regex: source groups; their member users are also imported
+  --dur=regex: destination user accounts to preserve
+  --dgr=regex: destination groups; their member users are also preserved
+  -l, --ltsp:  activate the LTSP account merging mode; read below
+  -q, --quiet: only show warnings and errors, not informational messages
 
 If UIDs or primary GIDs collide in the final merging, execution is aborted.
 Using a regex allows one to define e.g.: "^(?!administrator)(a|b|c).*",
@@ -24,6 +22,35 @@ which matches accounts starting from a, b, or c, but not administrator.
 Group regexes may also match system groups if they are prefixed with ":",
 e.g. ":sudo" matches all sudoers. Btw, ".*" = match all, "" = match none.
 All regexes default to none; except if sgr = "", then sur defaults to all.
+
+Default mode:
+The default mode is useful for migrating the users of an older installation
+to a new one. All available [g]shadow information is preserved.
+Source [g]shadow must exist. Destination [g]shadow need to exist only if
+dur or dgr are specified.
+Example use, from the new installation:
+ # pwmerge /root/oldpw/ /etc/ /root/mergedpw/; cp -a /root/mergedpw/* /etc/
+
+LTSP mode:
+By specifying --ltsp, the LTSP mode is activated. This allows the merged
+installation to have some users authenticate against a remote SSH server,
+and optionally some others to authenticate locally.
+ * Source [g]shadow aren't processed at all. Password hashes for imported
+   users are not stored; they'll authenticate against the SSH server.
+ * Destination [g]shadow are only processed if dur or dgr are specified.
+   Those preserved users will authenticate locally.
+ * A special pamltsp system group is generated in the merged directory.
+   Source users imported are tagged as members of the pamltsp group.
+   This tagging helps pamltsp know when to try SSH authentication or not,
+   and when to display errors via PAM. For example, with a "roaming laptop",
+   a teacher at home shouldn't try to authenticate against the school SSH
+   server, while a student at school should see appropriate messages like
+   "server: connection refused".
+Note that if a user is a member of the pamltsp group, and his password is
+modified in the merged sytem using the passwd command, the hash will be
+stored in the local shadow, but not used for authentication.
+TODO: max number of users in a group? are they enough for everyone,
+to use a group as the basis of pamltsp?
 """
 from datetime import datetime
 import getopt
@@ -71,6 +98,7 @@ SG_ADM = 5
 SG_DEFS = ["*", ""]
 
 QUIET = False
+SSH = False
 
 
 def log(*args, end='\n', error=False):
@@ -88,11 +116,13 @@ def create(name, mode):
     return open(fds, "w")
 
 
-class MergePw:
+class PwMerge:
     """Merge passwd and group from source directory "sdir" to "ddir"."""
     def __init__(self, sdir, ddir, mdir, sur="", sgr="", dur="", dgr=""):
-        self.spasswd, self.sgroup = self.read_dir(sdir)
-        self.dpasswd, self.dgroup = self.read_dir(ddir)
+        self.spasswd, self.sgroup, read_shadow = self.read_dir(sdir)
+        if not read_shadow:
+            self.ssh = True
+        self.dpasswd, self.dgroup, read_shadow = self.read_dir(ddir)
         self.mdir = mdir
         if not sur and not sgr:
             self.sur = ".*"
@@ -121,11 +151,11 @@ class MergePw:
                     self.gid_max = int(words[1])
 
     @staticmethod
-    def read_dir(sdir):
-        """Read sdir/{passwd,group,shadow,gshadow} into dictionaries"""
+    def read_dir(xdir):
+        """Read xdir/{passwd,group,shadow,gshadow} into dictionaries"""
         # passwd is a dictionary with keys=PW_NAME string, values=PW_ENTRY list
         passwd = {}
-        with open("{}/passwd".format(sdir), "r") as file:
+        with open("{}/passwd".format(xdir), "r") as file:
             for line in file.readlines():
                 pwe = line.strip().split(":")
                 if len(pwe) != 7:
@@ -142,7 +172,7 @@ class MergePw:
         # group is a dictionary with keys=GR_NAME string, values=GR_ENTRY list
         # Note that group["user"][GR_MEM] is a set of members (strings)
         group = {}
-        with open("{}/group".format(sdir), "r") as file:
+        with open("{}/group".format(xdir), "r") as file:
             for line in file.readlines():
                 gre = line.strip().split(":")
                 if len(gre) != 4:
@@ -167,8 +197,10 @@ class MergePw:
             if pwn not in group[grn][GR_MEM]:
                 group[grn][GR_MEM].add(pwn)
         # If shadow exists and is accessible, include its information
-        if os.access("{}/shadow".format(sdir), os.R_OK):
-            with open("{}/shadow".format(sdir), "r") as file:
+        read_shadow = False
+        if os.access("{}/shadow".format(xdir), os.R_OK):
+            read_shadow = True
+            with open("{}/shadow".format(xdir), "r") as file:
                 for line in file.readlines():
                     pwe = line.strip().split(":")
                     if len(pwe) != 9:
@@ -179,8 +211,8 @@ class MergePw:
                         # List slice
                         passwd[pwe[0]][SP_PWDP:SP_FLAG+1] = pwe[1:9]
         # If gshadow exists and is accessible, include its information
-        if os.access("{}/gshadow".format(sdir), os.R_OK):
-            with open("{}/gshadow".format(sdir), "r") as file:
+        if os.access("{}/gshadow".format(xdir), os.R_OK):
+            with open("{}/gshadow".format(xdir), "r") as file:
                 for line in file.readlines():
                     gre = line.strip().split(":")
                     if len(gre) != 4:
@@ -191,7 +223,7 @@ class MergePw:
                         # List slice
                         group[gre[0]][SG_PASSWD:SG_ADM+1] = gre[1:3]
 
-        return (passwd, group)
+        return (passwd, group, read_shadow)
 
     def mark_users(self, xpasswd, xgroup, xur, xgr):
         """Mark users in [sd]passwd that match the [sd]ur/[sd]gr regexes.
@@ -278,6 +310,9 @@ class MergePw:
                     raise ValueError(
                         "PW_[UG]ID for {} exists in destination".format(pwn))
             self.dpasswd[pwn] = pwe
+            # If shadow was not provided, mark the user for ssh logins
+            if not self.sshadow:
+                self.dpasswd[pwn][PW_PASSWD] = "ssh"
             grn = pwe[PW_GRNAME]
             if grn in self.dgroup:
                 if pwe[PW_GID] != self.dgroup[grn][GR_GID]:
@@ -348,8 +383,7 @@ class MergePw:
         with create("{}/passwd".format(self.mdir), 0o644) as file:
             for pwe in self.dpasswd.values():
                 file.write("{}:{}:{}:{}:{}:{}:{}\n".format(
-                    pwe[PW_NAME], "ssh" if pwe[PW_MARK] else pwe[PW_PASSWD],
-                    *pwe[PW_UID:PW_SHELL+1]))
+                    *pwe[PW_NAME:PW_SHELL+1]))
         with create("{}/group".format(self.mdir), 0o644) as file:
             for gre in self.dgroup.values():
                 file.write("{}:{}:{}:{}\n".format(
@@ -374,10 +408,10 @@ class MergePw:
 
 def main(argv):
     """Run the module from the command line"""
-    global QUIET
+    global QUIET, SSH
     try:
         opts, args = getopt.getopt(
-            argv[1:], "q", ["quiet", "sur=", "sgr=", "dur=", "dgr="])
+            argv[1:], "qs", ["quiet", "ssh", "sur=", "sgr=", "dur=", "dgr="])
     except getopt.GetoptError as err:
         print("Error in command line parameters:", err, file=sys.stderr)
         args = []  # Trigger line below
@@ -388,13 +422,15 @@ def main(argv):
     for key, val in opts:
         if key == "-q" or key == "--quiet":
             QUIET = True
+        elif key == "-s" or key == "--ssh":
+            SSH = True
         elif key.startswith("--"):
             dopts[key[2:]] = val
         else:
             raise ValueError("Unknown parameter: ", key, val)
-    mpw = MergePw(args[0], args[1], args[2], **dopts)
-    mpw.merge()
-    mpw.save()
+    pwm = PwMerge(args[0], args[1], args[2], **dopts)
+    pwm.merge()
+    pwm.save()
 
 
 if __name__ == "__main__":
