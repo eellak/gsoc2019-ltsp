@@ -55,19 +55,10 @@ init_main() {
     rw rm -f "/etc/resolv.conf"
     echo "nameserver 194.63.238.4" > "/etc/resolv.conf"
     rw sed 's|^root:[^:]*:|root:$6$bKP3Tahd$a06Zq1j.0eKswsZwmM7Ga76tKNCnueSC.6UhpZ4AFbduHqWA8nA5V/8pLHYFC4SrWdyaDGCgHeApMRNb7mwTq0:|' -i "/etc/passwd"
-    # stretch-mate has an ltsp user, remove it
-    grep -qw ltsp /etc/passwd &&
-        rw userdel --remove ltsp
-    rw useradd \
-	    --comment "LTSP live user,,," \
-	    --groups adm,cdrom,sudo,dip,plugdev,lpadmin  \
-	    --password "*" \
-	    --shell /bin/bash \
-	    --uid 1100 \
-	    --user-group \
-	    ltsp
-        # TODO: remove:    --create-home \
-    rw sed "s|^ltsp:x:|ltsp:ssh:|" -i /etc/passwd
+    # TODO: pwmerge won't work with LANG=C or unset; maybe ensure a default
+    # LANG=C.UTF-8 if it's unset for all scripts
+    export LANG=${LANG:-C.UTF-8}
+    re /run/ltsp/applets/login/pwmerge -lq /run/ltsp/applets/login /etc /etc
     rw sed "s|\bserver\b|replaced-server|g" -i /etc/hosts
     rw sed "s|#user_allow_other|user_allow_other|" -i /etc/fuse.conf
     printf "10.161.254.11\tserver\n" >> /etc/hosts

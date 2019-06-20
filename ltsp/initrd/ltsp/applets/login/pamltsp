@@ -11,7 +11,7 @@ die() {
     exit 1
 }
 
-# Install pamssh in the system PAM configuration. Needs root.
+# Install pamltsp in the system PAM configuration. Needs root.
 install() {
     local search replace
 
@@ -21,7 +21,7 @@ install() {
     replace="auth\t\[success=2 default=ignore\]\tpam_unix.so nullok_secure\n\
 auth\t\[success=1 default=ignore\]\tpam_exec.so seteuid expose_authtok stdout quiet $_SELF pam_auth"
     sed "s|$search|$replace|" -i /etc/pam.d/common-auth
-    grep -qw "pamssh" /etc/pam.d/common-auth ||
+    grep -qw "pamltsp" /etc/pam.d/common-auth ||
         die "Could not configure PAM for ssh authentication!"
     printf "session optional\tpam_exec.so seteuid stdout quiet %s\n" \
         "$_SELF pam_session" >> /etc/pam.d/common-session
@@ -48,13 +48,16 @@ pam_auth() {
         die "User $PAM_USER doesn't exist"
     fi
     IFS=:
-    # Variable names from `man getpwnam`
+    # Variable names from `man getpwent/getspent`
     read -r pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir pw_shell <<EOF
 $pw_entry
 EOF
+    read -r sp_namp sp_pwdp dummy<<EOF
+$(getent shadow "$PAM_USER")
+EOF
     test "$_OLDIFS" = "not set" && unset IFS || IFS="$_OLDIFS"
-    test "$pw_passwd" = "ssh" ||
-        die "User $PAM_USER can't auth via ssh"
+    test "$sp_pwdp" = "pamltsp" ||
+        die "User $PAM_USER can't auth via pamltsp"
 
     # $pw_dir must not be in use to be mounted; cd elsewhere
     cd / || true
@@ -132,8 +135,8 @@ pam_session() {
 }
 
 # SSH_ASKPASS implementation to transfer the PAM passphrase to SSH.
-# When pamssh is called with unknown parameters, it just calls ssh_askpass,
-# in order to provide pamssh as a single script.
+# When pamltsp is called with unknown parameters, it just calls ssh_askpass,
+# in order to provide pamltsp as a single script.
 # Very (!) long story short:
 # `pam_exec expose_authtok` places the user password in stdin.
 # SSH won't read it from stdin, but supports an external SSH_ASKPASS program.

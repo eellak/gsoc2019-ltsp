@@ -39,5 +39,5 @@ initrd_main() {
             >"$_DST_DIR/ltsp/applets/ltsp/05-client-conf.sh"
     fi
     # Copy server public ssh keys; prepend "server" to each entry
-    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/ltsp/applets/init/ssh_known_hosts"
+    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/ltsp/applets/login/ssh_known_hosts"
 }
