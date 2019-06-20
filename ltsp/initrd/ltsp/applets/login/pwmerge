@@ -29,7 +29,8 @@ to a new one. All available [g]shadow information is preserved.
 Source [g]shadow must exist. Destination [g]shadow need to exist only if
 dur or dgr are specified.
 Example use, from the new installation:
- # pwmerge /root/oldpw/ /etc/ /root/mergedpw/; cp -a /root/mergedpw/* /etc/
+    pwmerge /root/pwold/ /etc/ /root/pwmerged/
+    cp -a /root/pwmerged/* /etc/
 
 LTSP mode:
 By specifying --ltsp, the LTSP mode is activated. This allows the merged
@@ -37,22 +38,30 @@ installation to have some users authenticate against a remote SSH server,
 and optionally some others to authenticate locally.
  * Source [g]shadow aren't processed at all. Password hashes for imported
    users are not stored; they'll authenticate against the SSH server.
+   # TODO: They're actually tagged for this by setting their shadow hash to "pamltsp".
  * Destination [g]shadow are only processed if dur or dgr are specified.
    Those preserved users will authenticate locally.
  * A special pamltsp system group is generated in the merged directory.
-   Source users imported are tagged as members of the pamltsp group.
+   Imported source users are tagged as members of the pamltsp group.
    This tagging helps pamltsp know when to try SSH authentication or not,
    and when to display errors via PAM. For example, with a "roaming laptop",
    a teacher at home shouldn't try to authenticate against the school SSH
    server, while a student at school should see appropriate messages like
    "server: connection refused".
 Note that if a user is a member of the pamltsp group, and his password is
-modified in the merged sytem using the passwd command, the hash will be
+modified in the merged system using `sudo passwd user`, the hash will be
 stored in the local shadow, but not used for authentication.
-TODO: max number of users in a group? are they enough for everyone,
+
+TODO - concerns:
+Max number of users in a group? are they enough for everyone,
 to use a group as the basis of pamltsp?
+Fedora says it's split into multiple lines, with the same gid..
+Errors when adding u1 to u9999 users:
+In `useradd u9139`:
+useradd: Can't get unique subordinate UID range
+useradd: can't create subordinate user IDs
+Btw useradd is very fast in debian/init stage; very slow elsewhere.
 """
-from datetime import datetime
 import getopt
 import os
 import re
@@ -60,8 +69,6 @@ import shutil
 import sys
 
 # Names are from `man getpwent/getgrent/getspent/getsgent`
-# PW_GRNAME is the name of the primary group
-# PW_MARK is True if this user must be preserved
 PW_NAME = 0
 PW_PASSWD = 1
 PW_UID = 2
@@ -79,11 +86,12 @@ SP_INACT = 12
 SP_EXPIRE = 13
 SP_FLAG = 14
 # These additional fields are for internal use
-PW_GRNAME = 15  # The group name of the user
+PW_GRNAME = 15  # The primary group name of the user
 PW_MARK = 16  # Boolean, True if the user is marked to import/preserve
-# Default values when source shadow doesn't exist:
-SP_DEFS = ["*", (datetime.utcnow() - datetime(1970, 1, 1)).days,
-           0, 99999, 7, "", "", "", "", False]
+SP_DEFS = [  # Default values when source shadow doesn't exist (man 5 shadow)
+    "!",  # "!" is better than "*", as `useradd` and `passwd -l` use "!"
+    "",  # Disable password aging; it's managed on the server
+    "", "", "", "", "", "", "", False]
 GR_NAME = 0
 GR_PASSWD = 1
 GR_GID = 2
@@ -95,10 +103,9 @@ SG_PASSWD = 4
 SG_ADM = 5
 # SG_MEM is the same as GR_MEM so we ignore it
 # Default values when source gshadow doesn't exist:
-SG_DEFS = ["*", ""]
+SG_DEFS = ["*", "", ""]
 
 QUIET = False
-SSH = False
 
 
 def log(*args, end='\n', error=False):
@@ -118,11 +125,10 @@ def create(name, mode):
 
 class PwMerge:
     """Merge passwd and group from source directory "sdir" to "ddir"."""
-    def __init__(self, sdir, ddir, mdir, sur="", sgr="", dur="", dgr=""):
-        self.spasswd, self.sgroup, read_shadow = self.read_dir(sdir)
-        if not read_shadow:
-            self.ssh = True
-        self.dpasswd, self.dgroup, read_shadow = self.read_dir(ddir)
+    def __init__(self, sdir, ddir, mdir, sur="", sgr="", dur="", dgr="",
+                 ltsp=False):
+        self.spasswd, self.sgroup = self.read_dir(sdir, not ltsp)
+        self.dpasswd, self.dgroup = self.read_dir(ddir, dur or dgr)
         self.mdir = mdir
         if not sur and not sgr:
             self.sur = ".*"
@@ -131,6 +137,7 @@ class PwMerge:
         self.sgr = sgr
         self.dur = dur
         self.dgr = dgr
+        self.ltsp = ltsp
         # Read [ug]id min/max from login.defs or default to 1000/60000
         self.uid_min = 1000
         self.uid_max = 60000
@@ -151,7 +158,7 @@ class PwMerge:
                     self.gid_max = int(words[1])
 
     @staticmethod
-    def read_dir(xdir):
+    def read_dir(xdir, read_shadow):
         """Read xdir/{passwd,group,shadow,gshadow} into dictionaries"""
         # passwd is a dictionary with keys=PW_NAME string, values=PW_ENTRY list
         passwd = {}
@@ -196,10 +203,7 @@ class PwMerge:
             pwe[PW_GRNAME] = grn
             if pwn not in group[grn][GR_MEM]:
                 group[grn][GR_MEM].add(pwn)
-        # If shadow exists and is accessible, include its information
-        read_shadow = False
-        if os.access("{}/shadow".format(xdir), os.R_OK):
-            read_shadow = True
+        if read_shadow:
             with open("{}/shadow".format(xdir), "r") as file:
                 for line in file.readlines():
                     pwe = line.strip().split(":")
@@ -210,8 +214,7 @@ class PwMerge:
                     if pwe[0] in passwd:
                         # List slice
                         passwd[pwe[0]][SP_PWDP:SP_FLAG+1] = pwe[1:9]
-        # If gshadow exists and is accessible, include its information
-        if os.access("{}/gshadow".format(xdir), os.R_OK):
+        if read_shadow:
             with open("{}/gshadow".format(xdir), "r") as file:
                 for line in file.readlines():
                     gre = line.strip().split(":")
@@ -223,7 +226,7 @@ class PwMerge:
                         # List slice
                         group[gre[0]][SG_PASSWD:SG_ADM+1] = gre[1:3]
 
-        return (passwd, group, read_shadow)
+        return (passwd, group)
 
     def mark_users(self, xpasswd, xgroup, xur, xgr):
         """Mark users in [sd]passwd that match the [sd]ur/[sd]gr regexes.
@@ -310,9 +313,9 @@ class PwMerge:
                     raise ValueError(
                         "PW_[UG]ID for {} exists in destination".format(pwn))
             self.dpasswd[pwn] = pwe
-            # If shadow was not provided, mark the user for ssh logins
-            if not self.sshadow:
-                self.dpasswd[pwn][PW_PASSWD] = "ssh"
+            # In ltsp mode, mark the user for ssh logins
+            if self.ltsp:
+                self.dpasswd[pwn][SP_PWDP] = "pamltsp"
             grn = pwe[PW_GRNAME]
             if grn in self.dgroup:
                 if pwe[PW_GID] != self.dgroup[grn][GR_GID]:
@@ -340,6 +343,7 @@ class PwMerge:
                 # Same gids, just merge members without a warning
                 self.dgroup[grn][GR_MEM].update(gre[GR_MEM])
             else:
+                self.dgroup[grn][GR_MEM].update(gre[GR_MEM])
                 log(" [WARNING: group {} has sgid={}, dgid={}; ".
                     format(grn, gre[GR_GID], self.dgroup[grn][GR_GID]),
                     end="", error=True)
@@ -355,8 +359,14 @@ class PwMerge:
             log("", grn, end="")
         log(error=needeol)
 
+        # g2n is a temporary dictionary to map from group name to primary user
+        # Note that some gids (e.g. sudo) don't have a primary user
+        g2n = {}
+        for pwn, pwe in self.dpasswd.items():
+            g2n[pwe[PW_GRNAME]] = pwn
+
         # Remove all unknown members from destination groups,
-        # remove primary gids from group members,
+        # remove primary users from groups,
         # and remove non-system groups that have no members
         umem = set()
         log("Removed unknown groups:")
@@ -366,11 +376,17 @@ class PwMerge:
                 if grm in self.dpasswd and \
                         self.dpasswd[grm][PW_GID] != gre[GR_GID]:
                     continue
+                # Here it is either unknown or primary; remove it
                 gre[GR_MEM].remove(grm)
-                umem.add(grm)
+                # Don't notify when removing primary users
+                if not grm in self.dpasswd or \
+                        self.dpasswd[grm][PW_GID] != gre[GR_GID]:
+                    umem.add(grm)
             if not gre[GR_MEM]:
-                if self.gid_min <= gre[GR_GID] <= self.gid_max:
-                    del self.sgroup[grn]
+                # Don't remove primary groups if the user exists
+                if self.gid_min <= gre[GR_GID] <= self.gid_max and \
+                        gre[GR_NAME] not in g2n:
+                    del self.dgroup[grn]
                     log("", grn, end="")
         log()
         log("Removed unknown members:")
@@ -408,22 +424,22 @@ class PwMerge:
 
 def main(argv):
     """Run the module from the command line"""
-    global QUIET, SSH
+    global QUIET
     try:
         opts, args = getopt.getopt(
-            argv[1:], "qs", ["quiet", "ssh", "sur=", "sgr=", "dur=", "dgr="])
+            argv[1:], "lq", ["ltsp", "quiet", "sur=", "sgr=", "dur=", "dgr="])
     except getopt.GetoptError as err:
         print("Error in command line parameters:", err, file=sys.stderr)
         args = []  # Trigger line below
     if len(args) != 3:
         print(__doc__.strip())
         sys.exit(1)
-    dopts = {}
+    dopts = {"ltsp": False}
     for key, val in opts:
         if key == "-q" or key == "--quiet":
             QUIET = True
-        elif key == "-s" or key == "--ssh":
-            SSH = True
+        elif key == "-l" or key == "--ltsp":
+            dopts["ltsp"] = True
         elif key.startswith("--"):
             dopts[key[2:]] = val
         else:
