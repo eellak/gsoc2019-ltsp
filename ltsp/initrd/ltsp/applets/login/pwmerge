@@ -39,6 +39,8 @@ and optionally some others to authenticate locally.
  * Source [g]shadow aren't processed at all. Password hashes for imported
    users are not stored; they'll authenticate against the SSH server.
    # TODO: They're actually tagged for this by setting their shadow hash to "pamltsp".
+   One can run `passwd user` to set a local password and untag them,
+   or `usermod -p pamltsp user` to tag other users.
  * Destination [g]shadow are only processed if dur or dgr are specified.
    Those preserved users will authenticate locally.
  * A special pamltsp system group is generated in the merged directory.
