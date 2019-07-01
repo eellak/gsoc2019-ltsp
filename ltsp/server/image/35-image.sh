@@ -8,8 +8,7 @@
 image_cmdline() {
     local scripts args _DST_DIR img_name
 
-    scripts="$1"; shift
-    args=$(re getopt -n "$_LTSP_APPLET" -o "hk:V" \
+    args=$(re getopt -n "ltsp $_APPLET" -o "hk:V" \
         -l "help,kernel:,version" -- "$@")
     eval "set -- $args"
     while true; do
@@ -22,7 +21,7 @@ image_cmdline() {
             -r|--revert) shift; REVERT=1 ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$_LTSP_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline" ;;
         esac
         shift
     done
@@ -30,13 +29,13 @@ image_cmdline() {
         img_name=$(list_img_names)
         set -- $img_name
         if [ "$#" -gt 3 ] && [ "$ALL_IMAGES" != "1" ]; then
-            die "Refusing to run $_LTSP_APPLET for $# detected images!
+            die "Refusing to run ltsp $_APPLET for $# detected images!
 Please export ALL_IMAGES=1 if you want to allow this"
         fi
     fi
     for img_name in "$@"; do
         _DST_DIR=""
-        run_main_functions "$scripts" "$img_name"
+        run_main_functions "$_SCRIPTS" "$img_name"
     done
 }
 

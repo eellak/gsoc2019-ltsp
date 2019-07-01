@@ -7,7 +7,6 @@
 initrd_bottom_cmdline() {
     local scripts
 
-    scripts="$1"; shift
     if [ -f /scripts/functions ]; then
         # Running on initramfs-tools
         re . /scripts/functions
@@ -16,7 +15,7 @@ initrd_bottom_cmdline() {
         rootmnt=/sysroot
         # TODO: check which other variables we need, e.g. ROOT, netroot...
     fi
-    run_main_functions "$scripts" "$@"
+    run_main_functions "$_SCRIPTS" "$@"
 }
 
 initrd_bottom_main() {

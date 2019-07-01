@@ -7,9 +7,8 @@
 init_cmdline() {
     local scripts
 
-    scripts="$1"; shift
     warn "This is init-ltsp $*, type exit to continue booting"
-    run_main_functions "$scripts" "$@"
+    run_main_functions "$_SCRIPTS" "$@"
     rm /sbin/init
     mv /sbin/init.real /sbin/init
     if ! mount | grep -qw dev; then

@@ -5,10 +5,9 @@
 # Copy vmlinuz and initrd.img from image to TFTP
 
 kernel_cmdline() {
-    local scripts args
+    local args
 
-    scripts="$1"; shift
-    args=$(re getopt -n "$_LTSP_APPLET" -o "hk:V" \
+    args=$(re getopt -n "ltsp $_APPLET" -o "hk:V" \
         -l "help,kernel:,version" -- "$@")
     eval "set -- $args"
     while true; do
@@ -17,11 +16,11 @@ kernel_cmdline() {
             -k|--kernel-initrd) shift; KERNEL_INITRD="$1" ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$_LTSP_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline" ;;
         esac
         shift
     done
-    run_main_functions "$scripts" "$@"
+    run_main_functions "$_SCRIPTS" "$@"
 }
 
 kernel_main() {
@@ -31,7 +30,7 @@ kernel_main() {
         img_name=$(list_img_names)
         set -- $img_name
         if [ "$#" -gt 3 ] && [ "$ALL_IMAGES" != "1" ]; then
-            die "Refusing to run $_LTSP_APPLET for $# detected images!
+            die "Refusing to run ltsp $_APPLET for $# detected images!
 Please export ALL_IMAGES=1 if you want to allow this"
         fi
     fi

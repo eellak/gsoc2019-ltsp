@@ -5,10 +5,9 @@
 # Copy vmlinuz and initrd.img from image to TFTP
 
 info_cmdline() {
-    local scripts args
+    local args
 
-    scripts="$1"; shift
-    args=$(re getopt -n "$_LTSP_APPLET" -o "hV" \
+    args=$(re getopt -n "ltsp $_APPLET" -o "hV" \
         -l "help,version" -- "$@")
     eval "set -- $args"
     while true; do
@@ -16,11 +15,11 @@ info_cmdline() {
             -h|--help) applet_usage; exit 0 ;;
             -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
-            *) die "$_LTSP_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline" ;;
         esac
         shift
     done
-    run_main_functions "$scripts" "$@"
+    run_main_functions "$_SCRIPTS" "$@"
 }
 
 info_main() {
