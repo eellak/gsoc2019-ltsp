@@ -25,18 +25,13 @@ initrd_cmdline() {
 }
 
 initrd_main() {
-    re cp -a "$_LTSP_DIR/initrd/." "$_DST_DIR/"
-    re cp -a "$_LTSP_DIR/ltsp.sh" "$_DST_DIR/ltsp/"
-    re mkdir -p "$_DST_DIR/ltsp/applets/"
-    re cp -a "$_LTSP_DIR/applets/ltsp" "$_DST_DIR/ltsp/applets/"
-    # Users can override things from /etc/ltsp
-    if [ -d /etc/ltsp/initrd ]; then
-        re cp -a "/etc/ltsp/initrd/." "$_DST_DIR/"
-    fi
+    re mkdir -p "$_DST_DIR/usr/share/ltsp/run"
+    re cp -a "$_LTSP_DIR/client" "$_LTSP_DIR/common" "$_LTSP_DIR/ltsp" \
+        "$_DST_DIR/usr/share/ltsp/"
     if [ -f /etc/ltsp/client.conf ]; then
-        "$_LTSP_DIR/applets/ltsp-initrd/ini2sh.awk" </etc/ltsp/client.conf \
-            >"$_DST_DIR/ltsp/applets/ltsp/05-client-conf.sh"
+        # TODO: or possibly in the initrd-bottom dir...
+        re cp -a / etc/ltsp/client.conf "$_DST_DIR/usr/share/ltsp/run/"
     fi
     # Copy server public ssh keys; prepend "server" to each entry
-    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/ltsp/applets/login/ssh_known_hosts"
+    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/usr/share/ltsp/client/login/ssh_known_hosts"
 }

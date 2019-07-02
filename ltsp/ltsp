@@ -358,7 +358,7 @@ run_parts_list() {
     for d in "$@"; do
         test -d "$d" || continue
         # Don't quote $param1 in case more params are ever required
-        find "$d" $param1 "$param2" -type f \
+        find "$d" -maxdepth 1 $param1 "$param2" -type f \
         | while IFS='' read -r f; do
             printf '%s\t%s\t%s\n' "$i" "${f##*/}" "$f"
         done
