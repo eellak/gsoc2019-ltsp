@@ -11,7 +11,6 @@ cpio_main() {
     done 3<<EOF
 $(find "$_DST_DIR" -name '*.sh')
 EOF
-    # TODO also add the server public ssh keys
     # Create the initrd
     re cd "$_DST_DIR"
     {

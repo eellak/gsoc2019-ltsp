@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Create the additional LTSP initrd image at $TFTP_DIR/ltsp/ltsp.img
-# Vendors can add to $_DST_DIR between initrd_main and finalize_main
+# Vendors can add to $_DST_DIR between initrd_main and cpio_main
 
 initrd_cmdline() {
     local args _DST_DIR
@@ -25,6 +25,7 @@ initrd_cmdline() {
 }
 
 initrd_main() {
+    # The run directory will be moved to /run/ltsp/client
     re mkdir -p "$_DST_DIR/usr/share/ltsp/run"
     re cp -a "$_LTSP_DIR/client" "$_LTSP_DIR/common" "$_LTSP_DIR/ltsp" \
         "$_DST_DIR/usr/share/ltsp/"
