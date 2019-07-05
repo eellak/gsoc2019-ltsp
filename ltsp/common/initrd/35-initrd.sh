@@ -29,6 +29,10 @@ initrd_main() {
     re mkdir -p "$_DST_DIR/usr/share/ltsp/run"
     re cp -a "$_LTSP_DIR/client" "$_LTSP_DIR/common" "$_LTSP_DIR/ltsp" \
         "$_DST_DIR/usr/share/ltsp/"
+    re mkdir -p "$_DST_DIR/conf/conf.d"
+    # Busybox doesn't support ln -r
+    re ln -s /usr/share/ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf \
+        "$_DST_DIR/conf/conf.d/ltsp.conf"
     if [ -f /etc/ltsp/client.conf ]; then
         # TODO: or possibly in the initrd-bottom dir...
         re cp -a / etc/ltsp/client.conf "$_DST_DIR/usr/share/ltsp/run/"

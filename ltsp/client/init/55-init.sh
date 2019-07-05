@@ -9,8 +9,11 @@ init_cmdline() {
 
     warn "This is init-ltsp $*, type exit to continue booting"
     run_main_functions "$_SCRIPTS" "$@"
-    rm /sbin/init
-    mv /sbin/init.real /sbin/init
+    # initrd-bottom may have renamed the real init
+    if [ -f /sbin/init.real ]; then
+        rm /sbin/init
+        mv /sbin/init.real /sbin/init
+    fi
     if ! mount | grep -qw dev; then
         echo ========NODEV========
         openvt -c 5 bash

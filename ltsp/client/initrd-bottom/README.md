@@ -1,16 +1,4 @@
 # Initramfs notes for LTSP
-Tasks that need to run in the initramfs:
- * Work around initramfs-tools/dracut issues (e.g. nbd0p1)
- * Overlay root:
-   * Do the tmpfs overlay in /run/initramfs/cow, because systemd doesn't
-     unmount /run/initramfs/* on shutdown.
-   * Put the LTSP code in the tmpfs overlay, because initramfs-tools uses
-     noexec for /run/initramfs. Then symlink to /run/ltsp for easier paths.
- * Move $rootmnt/sbin/init to init.real; symlink it to /run/ltsp/ltsp.sh;
-   then from the ltsp-init applet, put init.real back.
- * Support fancy mounting, e.g. squashfs root over NFS
- * Do we need CMD_INITRD_BOTTOM_xx?
-
 Tasks that shouldn't run in the initramfs:
  * mkswap isn't generally available; activate swap later
  * If 00-overlay is ever needed, we'll manage. Don't care about it now.

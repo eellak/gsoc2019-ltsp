@@ -35,7 +35,26 @@ initrd_bottom_main() {
     fi
     test -d "$rootmnt/proc" || die "$rootmnt/proc doesn't exist in initrd-bottom"
     test "$LTSP_OVERLAY" = "0" || re overlay_root
-    re override_init
+    re install_ltsp
+}
+
+install_ltsp() {
+    re cp -a /usr/share/ltsp/run/. /run/ltsp/.
+    # Remove run to avoid rsync'ing it to $rootmnt
+    re rm -rf /usr/share/ltsp/run
+    re ln -sf ../share/ltsp/ltsp "$rootmnt/usr/sbin/ltsp"
+    # Running rsync outside the chroot fails because of missing libraries
+    re mount --bind /usr/share/ltsp "$rootmnt/tmp"
+    re chroot "$rootmnt" rsync -a --delete /tmp/ /usr/share/ltsp
+    re umount "$rootmnt/tmp"
+    # To avoid specifying an init=, we override the real init.
+    # We can't mount --bind as it's in use by libraries and can't be unmounted.
+    re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"
+    re ln -s ../../usr/share/ltsp/client/init/init "$rootmnt/sbin/init"
+    # Jessie needs a 3.18+ kernel and this initramfs-tools hack:
+    if grep -qs jessie /etc/os-release; then
+        echo "init=${init:-/sbin/init}" >> /scripts/init-bottom/ORDER
+    fi
 }
 
 modprobe_overlay() {
@@ -57,28 +76,6 @@ modprobe_overlay() {
             return 0
     fi
     return 1
-}
-
-override_init() {
-    # To avoid specifying an init=, we override the real init.
-    # We can't mount --bind as it's in use by libraries and can't be unmounted.
-    # In some cases we could create a symlink to /run/ltsp/ltsp.sh,
-    # but it doesn't work in all initramfs-tools versions.
-    # So let's be safe and use plain cp.
-    re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"
-    # I think init can't be just a symlink to ltsp.sh like the other applets,
-    # because of initramfs init validation / broken symlink at that point.
-    echo '#!/bin/sh
-exec /run/ltsp/ltsp.sh init "$@"' > "$rootmnt/sbin/init"
-    re chmod +x "$rootmnt/sbin/init"
-    # Jessie needs a 3.18+ kernel and this initramfs-tools hack:
-    if grep -qs jessie /etc/os-release; then
-        echo "init=${init:-/sbin/init}" >> /scripts/init-bottom/ORDER
-    fi
-    # Move ltsp to /run to make it available after pivot_root.
-    # But initramfs-tools mounts /run with noexec; so use a symlink.
-    re mv /ltsp /run/initramfs/ltsp/
-    re ln -s initramfs/ltsp/ltsp /run/ltsp
 }
 
 overlay_root() {

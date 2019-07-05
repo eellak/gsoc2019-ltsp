@@ -92,7 +92,9 @@ debug_shell() {
     fi
     # Use `setsid -c` to enable job control in the shell
     if [ "$(id -u)" = "0" ] && is_command setsid; then
-        setsid="setsid -c"
+        # TODO: this breaks Ctrl+C for server-side invocations;
+        # temporarily disabled
+        true setsid="setsid -c"
     else
         unset setsid
     fi
