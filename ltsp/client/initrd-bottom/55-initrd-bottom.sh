@@ -43,10 +43,16 @@ install_ltsp() {
     # Remove run to avoid rsync'ing it to $rootmnt
     re rm -rf /usr/share/ltsp/run
     re ln -sf ../share/ltsp/ltsp "$rootmnt/usr/sbin/ltsp"
-    # Running rsync outside the chroot fails because of missing libraries
-    re mount --bind /usr/share/ltsp "$rootmnt/tmp"
-    re chroot "$rootmnt" rsync -a --delete /tmp/ /usr/share/ltsp
-    re umount "$rootmnt/tmp"
+    # Rsync saves space, but it's not available e.g. in stretch-mate-sch
+    if [ -x "$rootmnt/usr/bin/rsync" ]; then
+        # Running rsync outside the chroot fails because of missing libraries
+        re mount --bind /usr/share/ltsp "$rootmnt/tmp"
+        re chroot "$rootmnt" rsync -a --delete /tmp/ /usr/share/ltsp
+        re umount "$rootmnt/tmp"
+    else
+        re rm -rf "$rootmnt/usr/share/ltsp"
+        re cp -a /usr/share/ltsp "$rootmnt/usr/share/"
+    fi
     # To avoid specifying an init=, we override the real init.
     # We can't mount --bind as it's in use by libraries and can't be unmounted.
     re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"

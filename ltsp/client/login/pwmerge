@@ -414,8 +414,9 @@ class PwMerge:
         with create("{}/gshadow".format(self.mdir), 0o640) as file:
             for gre in self.dgroup.values():
                 file.write("{}:{}:{}:{}\n".format(
-                    gre[GR_NAME], *gre[SG_PASSWD:SG_ADM+1],
-                    ",".join(gre[GR_MEM])))
+                    gre[GR_NAME],
+                    # In python <3.5, unpacked arguments may only be last
+                    *(gre[SG_PASSWD:SG_ADM+1] + [",".join(gre[GR_MEM])])))
         if os.geteuid() == 0:
             shutil.chown("{}/shadow".format(self.mdir), group="shadow")
             shutil.chown("{}/gshadow".format(self.mdir), group="shadow")

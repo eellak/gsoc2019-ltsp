@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 pam_main() {
-    rw /run/ltsp/applets/login/pamltsp install
+    rw /usr/share/ltsp/client/login/pamltsp install
     export LANG=el_GR.UTF-8
-    rw openvt -c 2 nano /run/ltsp/applets/login/pamltsp
+    rw openvt -c 2 nano /usr/share/ltsp/client/login/pamltsp
     rw openvt -c 3 nano /etc/pam.d/common-auth
     rw openvt -c 4 nano /etc/pam.d/common-session
     rw openvt -c 5 bash -l

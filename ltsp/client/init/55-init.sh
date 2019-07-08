@@ -50,6 +50,11 @@ init_main() {
     for service in apt-daily.service apt-daily-upgrade.service snapd.seeded.service rsyslog.service; do
         rw ln -s /dev/null "/etc/systemd/system/$service"
     done
+    # Disable autologin on gdm3
+    if grep -qsw AutomaticLoginEnable /etc/gdm3/daemon.conf; then
+        sed 's|^AutomaticLoginEnable\b.*=.*rue|AutomaticLoginEnable=False|' \
+            -i /etc/gdm3/daemon.conf
+    fi
     # TODO: or this; both are fast: rw systemctl mask --quiet --root=/ --no-reload apt-daily.service apt-daily-upgrade.service snapd.seeded.service rsyslog.service
     rw rm -f "/etc/init.d/shared-folders"
     rw rm -f "/etc/cron.daily/mlocate"
@@ -60,7 +65,7 @@ init_main() {
     # TODO: pwmerge won't work with LANG=C or unset; maybe ensure a default
     # LANG=C.UTF-8 if it's unset for all scripts
     export LANG=${LANG:-C.UTF-8}
-    re /run/ltsp/applets/login/pwmerge -lq /run/ltsp/applets/login /etc /etc
+    re /usr/share/ltsp/client/login/pwmerge -lq /usr/share/ltsp/client/login/_.git/src /etc /etc
     rw sed "s|\bserver\b|replaced-server|g" -i /etc/hosts
     rw sed "s|#user_allow_other|user_allow_other|" -i /etc/fuse.conf
     printf "10.161.254.11\tserver\n" >> /etc/hosts
