@@ -372,6 +372,7 @@ source_scripts() {
     local scripts script
 
     scripts=$1
+    test -n "$scripts" || die "ltsp $_APPLET contains no scripts!"
     while read -r script <&3; do
         debug "Sourcing: $script"
         . "$script"

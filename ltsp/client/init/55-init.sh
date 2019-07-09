@@ -67,10 +67,15 @@ init_main() {
     export LANG=${LANG:-C.UTF-8}
     re /usr/share/ltsp/client/login/pwmerge -lq /usr/share/ltsp/client/login/_.git/src /etc /etc
     rw sed "s|\bserver\b|replaced-server|g" -i /etc/hosts
-    rw sed "s|#user_allow_other|user_allow_other|" -i /etc/fuse.conf
     printf "10.161.254.11\tserver\n" >> /etc/hosts
     # TODO: remove: disable autologin
     rw rm /etc/lightdm/lightdm.conf
+    # TODO: remove: create some test users to see how DMs handle them
+    blank=$(python3 -c 'import crypt; print(crypt.crypt(""))')
+    echo -e '1\n1\n' | adduser b; usermod -p "$blank" b
+    echo -e '1\n1\n' | adduser l; passwd -l l
+    echo -e '1\n1\n' | adduser np; passwd -d np
+    echo -e '1\n1\n' | adduser p
     #NFS_HOME=1
     if [ -n "$NFS_HOME" ]; then
         rw /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "/home"
