@@ -35,34 +35,18 @@ Example use, from the new installation:
 LTSP mode:
 By specifying --ltsp, the LTSP mode is activated. This allows the merged
 installation to have some users authenticate against a remote SSH server,
-and optionally some others to authenticate locally.
+and optionally some others authenticate locally.
  * Source [g]shadow aren't processed at all. Password hashes for imported
    users are not stored; they'll authenticate against the SSH server.
-   # TODO: They're actually tagged for this by setting their shadow hash to "pamltsp".
-   One can run `passwd user` to set a local password and untag them,
+ * Users are tagged for pamltsp logins by setting their pw_passwd to "pamltsp".
+   The sysadmin may run `passwd user` to set a local password and untag them,
    or `usermod -p pamltsp user` to tag other users.
+ * Local passwordless logins for remote users are supported by running
+   `usermod -p pamltsp=$base64_password user`.
+ * Guest passwordless logins without SSH authentication are supported by
+   `usermod -p pamltsp= user`; /home/$user must be NFS or local, not SSHFS.
  * Destination [g]shadow are only processed if dur or dgr are specified.
    Those preserved users will authenticate locally.
- * A special pamltsp system group is generated in the merged directory.
-   Imported source users are tagged as members of the pamltsp group.
-   This tagging helps pamltsp know when to try SSH authentication or not,
-   and when to display errors via PAM. For example, with a "roaming laptop",
-   a teacher at home shouldn't try to authenticate against the school SSH
-   server, while a student at school should see appropriate messages like
-   "server: connection refused".
-Note that if a user is a member of the pamltsp group, and his password is
-modified in the merged system using `sudo passwd user`, the hash will be
-stored in the local shadow, but not used for authentication.
-
-TODO - concerns:
-Max number of users in a group? are they enough for everyone,
-to use a group as the basis of pamltsp?
-Fedora says it's split into multiple lines, with the same gid..
-Errors when adding u1 to u9999 users:
-In `useradd u9139`:
-useradd: Can't get unique subordinate UID range
-useradd: can't create subordinate user IDs
-Btw useradd is very fast in debian/init stage; very slow elsewhere.
 """
 import getopt
 import os
