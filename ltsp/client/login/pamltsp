@@ -3,19 +3,31 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Provide PAM authentication to a server via ssh and optionally $HOME with sshfs.
-# It's not a usual LTSP applet in order to be able to run without LTSP.
+# Provide PAM authentication to a server via SSH and optionally SSHFS $HOME.
+# It's not an LTSP applet in order to be able to run without LTSP.
+# It may be called by the user (see install below),
+# or by pam_exec, either as root for the initial login,
+# or as the user for screensaver unlocking etc.
 
 die() {
     printf "%s\n" "$*" >&2
     exit 1
 }
 
-# Install pamltsp in the system PAM configuration. Needs root.
+require_root() {
+    if [ "$_UID" != "0" ]; then
+        die "${1:-$0 must be run as root}"
+    fi
+}
+
+# Install pamltsp in the system PAM configuration.
 install() {
     local search replace
 
+    require_root
     sed 's/.*\(KillUserProcesses=\).*/\1yes/' -i /etc/systemd/logind.conf
+    # The seteuid option is needed for `getent shadow`, for mkdir/chown $HOME,
+    # for caching shadow options to /run/ltsp/pam/, for using systemd-run etc.
     # These are Debian/Ubuntu specific:
     search="^auth\t\[success=1 default=ignore\]\tpam_unix.so nullok_secure$"
     replace="auth\t\[success=2 default=ignore\]\tpam_unix.so nullok_secure\n\
@@ -25,24 +37,31 @@ auth\t\[success=1 default=ignore\]\tpam_exec.so seteuid expose_authtok stdout qu
         die "Could not configure PAM for SSH authentication!"
     printf "session optional\tpam_exec.so seteuid stdout quiet %s\n" \
         "$_SELF pam_session" >> /etc/pam.d/common-session
-    # In SSHFS, gnome-keyring needs disable_hardlinks, but this breaks
-    # ICEauthority, so just disable gnome-keyring
-    if [ "$SSHFS" != 0 ] && [ -x /usr/bin/gnome-keyring ]; then
-        chmod -x /usr/bin/gnome-keyring
-    fi
-    # TODO: ssh -X user@localhost from an ltsp client fails too:
-    # /usr/bin/xauth: timeout in locking authority file /home/user/.Xauthority
-    # It's probably not important; plain `xhost +local:` is OK for DIRECTX.
 }
 
+# May be called:
+# As root by pam auth, for SSH or SSHFS or passwordless logins
+# As root by pam open_session, for autologins
+# As user by pam auth, for screensaver unlocking
+# As the user doesn't have enough rights to `getent shadow`;
+# necessary information should be cached in /run/ltsp/pam/ on login.
 pam_auth() {
     local pw_entry pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir \
-        pw_shell password msg
+        pw_shell sp_entry sp_namp sp_pwdp dummy msg
 
     pam_log
-    # Verify we're being called from PAM and that the user is marked as an ssh user
+    # Verify that we're being called from PAM and that the user exists
     if [ -z "$PAM_USER" ] || ! pw_entry=$(getent passwd "$PAM_USER"); then
         die "User $PAM_USER doesn't exist"
+    fi
+    # Retrieve the user's sp_entry from shadow or cache
+    if [ "$_UID" = "0" ]; then
+        sp_entry=$(getent shadow "$PAM_USER")
+    elif [ -f "/run/ltsp/pam/$PAM_USER/shadow" ]; then
+        sp_entry=$(cat "/run/ltsp/pam/$PAM_USER/shadow")
+    else
+        # We can't retrieve it; assume they're not a pamltsp user
+        exit 1
     fi
     IFS=:
     # Variable names from `man getpwent/getspent`
@@ -50,55 +69,81 @@ pam_auth() {
 $pw_entry
 EOF
     read -r sp_namp sp_pwdp dummy<<EOF
-$(getent shadow "$PAM_USER")
+$sp_entry
 EOF
     test "$_OLDIFS" = "not set" && unset IFS || IFS="$_OLDIFS"
-    test "$sp_pwdp" = "pamltsp" ||
+    test "$pw_name" = "$sp_namp" || die "Invalid passwd/shadow for $PAM_USER"
+    test "${sp_pwdp}" != "${sp_pwdp#pamltsp}" ||
+        # TODO: delete this message in production and just exit 1
         die "User $PAM_USER can't auth via pamltsp"
-
-    # $pw_dir must not be in use to be mounted; cd elsewhere
-    cd / || true
-
-    # Create an empty home dir if it's not there; nope, no skel for sshfs
-    if [ ! -d "$pw_dir" ]; then
-        mkdir -p -m 0755 "$pw_dir"
-        chown "$pw_uid:$pw_gid" "$pw_dir"
+    # First call since boot
+    if [ ! -d /run/ltsp/pam ]; then
+        mkdir -p /run/ltsp/pam
+        if [ "$SSHFS" != "0" ]; then
+            # On SSHFS gnome-keyring requires disable_hardlinks, but this
+            # breaks ICEauthority, so just disable gnome-keyring for now
+            # https://bugzilla.gnome.org/show_bug.cgi?id=730587
+            # TODO: ssh -X user@localhost from an ltsp client fails too:
+            # /usr/bin/xauth: timeout in locking authority file /home/user/.Xauthority
+            # It's probably not important; plain `xhost +local:` is OK for DIRECTX.
+            if [ -x /usr/bin/gnome-keyring ]; then
+                chmod -x /usr/bin/gnome-keyring
+            fi
+        fi
     fi
-    # TODO: I think these are only needed if we're not using seteuid
-    # TODO: without setuid, we can't modprobe/chmod here
-    # Needed in Debian; built-in in Ubuntu
-    grep -qs "fuse$" /proc/filesystems || modprobe fuse || true
-    # Debian defaults to 600, Ubuntu to 666
-    chmod 666 /dev/fuse || true
-
-    # The ssh call logic is documented in ssh_askpass
-    export DISPLAY=
-    export SSH_ASKPASS="$0"
+    # Cache the shadow entry for screensaver and passwordless authentication
+    if [ "$_UID" = 0 ]; then
+        # TODO: change that to 700 if we need .ICEauthority here
+        mkdir -p -m 500 "/run/ltsp/pam/$pw_name"
+        chown "$pw_uid:$pw_gid" "/run/ltsp/pam/$pw_name"
+        echo "$sp_entry" > "/run/ltsp/pam/$pw_name/shadow"
+    fi
+    # Support "pamltsp=" for passwordless logins without SSH authentication
+    # for guest-like accounts with NFS/local home.
+    pass=${sp_pwdp#pamltsp}
+    pass=${pass%%,*}
+    test "$pass" = "=" && return 0
     # jessie-mate breaks with IdentityFile=/dev/null and shows:
     #   Enter passphrase for key '/dev/null':
     # It works with IdentityFile=/nonexistent
-    set -- -F /dev/null -o UserKnownHostsFile="${0%/*}/ssh_known_hosts" \
+    set -- -F /dev/null -o UserKnownHostsFile="${_SELF%/*}/ssh_known_hosts" \
         -o IdentitiesOnly=yes -o IdentityFile=/nonexistent \
         -o NumberOfPasswordPrompts=1
     unset success
     if [ "$SSHFS" = "0" ] || mountpoint -q /home || mountpoint -q "$pw_dir"
     then
-        ssh -q "$@" "$pw_name@server" true && success=1
+        if [ "$PAM_TYPE" = "open_session" ]; then
+            # This point is reached when we already mounted home in auth,
+            # or for passwordless logins with NFS/local home.
+            # In these cases we want to skip SSH authentication.
+            exit 1
+        fi
+        # The ssh call logic is documented in ssh-askpass
+        export DISPLAY=
+        export SSH_ASKPASS="${_SELF%/*}/ssh-askpass"
+        ssh -q "$@" "$pw_name@$SERVER" /bin/true && success=1
     else
+        test "$_UID" = 0 || die "SSHFS needed without root?!"
+        # $pw_dir must not be in use to be mounted; cd elsewhere
+        cd / || true
+        # Create an empty home dir if it's not there; nope, no skel for SSHFS
+        if [ ! -d "$pw_dir" ]; then
+            mkdir -p -m 0755 "$pw_dir"
+            chown "$pw_uid:$pw_gid" "$pw_dir"
+        fi
         # SSHFS doesn't appear to support SSH_ASKPASS, but it can read stdin
         # TODO: but why doesn't it read it directly from pam_exec?
-        read -r password
-        # allow_other: if not seteuid, or for lightdm to setup .Xauthority
-        # disable_hardlink: fixes gnome-keyring,
-        # https://bugzilla.gnome.org/show_bug.cgi?id=730587
+        # allow_other,default_permissions: allow the user but not other users
+        # We don't use `sudo -u` for sshfs to avoid modprobe'ing fuse,
+        # sed'ing fuse.conf, chown'ing home etc; if we did, that would be:
+        # allow_root: for the DM to setup .Xauthority
         # nonempty: in case of .bash_history or local home
-        if sshfs -o password_stdin -o allow_other,nonempty \
-            "$@" "$pw_name@server:" "$pw_dir"
+        if "${_SELF%/*}/ssh-askpass" |
+            sshfs -o password_stdin,allow_other,default_permissions,nonempty \
+            "$@" "$pw_name@$SERVER:" "$pw_dir"
         then
             success=1
-        fi <<EOF
-$password
-EOF
+        fi
     fi
     if [ "$success" = "1" ]; then
         return 0
@@ -127,31 +172,14 @@ pam_session() {
     pam_log
     case "$PAM_TYPE" in
         close_session) unmount_sshfs; return 0 ;;
-        open_session) true; return 0 ;;  # TODO: autologin mount here?
+        open_session) pam_auth; return 0 ;;
     esac
-}
-
-# SSH_ASKPASS implementation to transfer the PAM passphrase to SSH.
-# When pamltsp is called with unknown parameters, it just calls ssh_askpass,
-# in order to provide pamltsp as a single script.
-# Very (!) long story short:
-# `pam_exec expose_authtok` places the user password in stdin.
-# SSH won't read it from stdin, but supports an external SSH_ASKPASS program.
-# It only calls SSH_ASKPASS if DISPLAY is set though, even to an empty value.
-# Also, if stdin is a tty, it prefers to use it; so in cmdline it needs:
-#   echo pass | SSH_ASKPASS=ssh-askpass setsid ssh user@server cmd
-# Under PAM we're already in a pipe, and setsid isn't needed.
-# So our fancy ssh-askpass program just needs to echo stdin to stdout!
-# Take that, SSH screen scraping! :)
-ssh_askpass() {
-    read -r pass
-    echo "$pass"
 }
 
 unmount_sshfs() {
     local pw_entry pw_name pw_passwd pw_uid pw_gid pw_gecos pw_dir pw_shell
 
-    # Verify we're being called from PAM and that the user is marked as an ssh user
+    # Verify that we're being called from PAM and that the user exists
     if [ -z "$PAM_USER" ] || ! pw_entry=$(getent passwd "$PAM_USER"); then
         die "User $PAM_USER doesn't exist"
     fi
@@ -162,29 +190,32 @@ $pw_entry
 EOF
     test "$_OLDIFS" = "not set" && unset IFS || IFS="$_OLDIFS"
 
-    # If $HOME isn't sshfs, exit
+    # If $HOME isn't SSHFS, exit
     grep -qs "$pw_dir fuse.sshfs" /proc/mounts || return 0
 
     # TODO: only run this as root
+    # TODO: --quiet isn't supported in jessie-mate
     # Tell systemd not to wait nor to kill this:
-    systemd-run --scope --quiet "$_SELF" unmount_sshfs_stage2 \
+    systemd-run --scope "$_SELF" unmount_sshfs_stage2 \
         "$PAM_USER" "$pw_dir" >/dev/null 2>/dev/null </dev/null &
     # Without this sleep, systemd-run works 100% on vt2, 10% on GUI
     sleep 0.1
     return 0
 }
 
-# This is run with no file descriptors open, to be properly backgrounded
+# This runs with no file descriptors open, to be properly backgrounded
 unmount_sshfs_stage2() {
     # This isn't called from pam; just emulating it for pam_log
     PAM_TYPE=unmount
     pam_log
     # Give 5 seconds to systemd for process killing and cleanup
     sleep 5
-    # If there are still user processes running, exit
-    # We could also check for /run/user/$pw_uid, but it needs loginctl running
-    pgrep -u "$1" && return 0
-    fusermount -u "$2"
+    # If there are still user processes running, don't unmount it
+    if [ "$(pgrep -cu "$1")" -gt 0 ]; then
+        return 0
+    else
+        fusermount -u "$2"
+    fi
 }
 
 main() {
@@ -192,11 +223,11 @@ main() {
 
     _OLDIFS="${IFS-not set}"
     _SELF=$(readlink -f "$0")
+    _UID=$(id -u)
+    # TODO: read these from a configuration file
+    # SSHFS=1  # The default
+    SERVER=server
     case "$1" in
-        *:*)
-            # SSH passes the prompt, `SSH_ASKPASS "ltsp@server's password: "`
-            ssh_askpass
-            ;;
         install|pam_auth|pam_session|unmount_sshfs_stage2)
             func=$1
             shift
