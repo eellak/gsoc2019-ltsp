@@ -5,7 +5,7 @@
 **ltsp** [**-b=**_base-dir_] [**-h**] [**-i=**_image-dir_]  [**-n=**_nfs-dir_] [**-o**] [**-t=**_tftp-dir_] [**-V**] [_applet_] [_applet-options_]
 
 ## DESCRIPTION
-Run the specified LTSP _applet_ with _applet-options_. To get help with applets and their options, run \`**man** **ltsp** _applet_\` or \`**ltsp** _applet_ **--help**\`.
+Run the specified LTSP _applet_ with _applet-options_. To get help with applets and their options, run \`**man ltsp** _applet_\` or \`**ltsp --help** _applet_\`.
 
 ## APPLETS
 The following applets are currently defined:

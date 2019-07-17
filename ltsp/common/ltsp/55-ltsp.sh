@@ -23,22 +23,34 @@ EXPORT_DIR="${EXPORT_DIR:-/srv/ltsp}"
 TFTP_DIR="${TFTP_DIR:-/srv/ltsp}"
 
 ltsp_cmdline() {
+    local args show_help help_param
+
+    args=$(re getopt -n "ltsp" -o "+b:e:h::o::t:V" -l \
+        "base-dir:,export-dir:,help::,overwrite::,tftp-dir:,version" -- "$@")
+    eval "set -- $args"
+    show_help=0
+    help_param=
     while true; do
         case "$1" in
-            -b|--base-dir) BASE_DIR=$1; shift ;;
-            -e|--export-dir) EXPORT_DIR=$1; shift ;;
-            -h|--help|"") applet_usage; exit 0 ;;
-            -t|--tftp-dir) TFTP_DIR=$1; shift ;;
-            -V|--version) applet_version; exit 0 ;;
-            -*) die "Unknown option: $1" ;;
-            *)  _APPLET="$1"
-                shift
-                break
-                ;;
+            -b|--base-dir) shift; BASE_DIR=$1 ;;
+            -e|--export-dir) shift; EXPORT_DIR=$1 ;;
+            -h|--help) shift; help_param=$1; show_help=1 ;;
+            -o|--overwrite) shift; OVERWRITE=${1:-1} ;;
+            -t|--tftp-dir) shift; TFTP_DIR=$1; ;;
+            -V|--version) version; exit 0 ;;
+            --) shift; break ;;
+            *) die "ltsp: error in cmdline" ;;
         esac
+        shift
     done
+    # Support `ltsp --help`, `ltsp --help=applet` and `ltsp --help applet`
+    if [ -z "$1" ] || [ "$show_help" = "1" ]; then
+        usage ${help_param:-$1}
+        exit 0
+    fi
     # "$@" is the applet parameters; don't use it for the ltsp main functions
     run_main_functions "$_SCRIPTS"
+    _APPLET="$1"; shift
     # We could put the rest of the code below in an ltsp_main() function,
     # but we want ltsp/scriptname_main()s to finish before any applet starts
     locate_applet_scripts "$_APPLET"

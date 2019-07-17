@@ -36,27 +36,24 @@ main() {
     test "$_SOURCED" = "1" || ltsp_cmdline "$@"
 }
 
-# Return "ltsp" or "ltsp $APPLET"
-ltsp_applet() {
-    if [ "$_APPLET" = ltsp ]; then
-        echo ltsp
-    else
-        echo "ltsp $APPLET"
+# On abnormal termination, we run both the term and exit commands.
+# On normal termination, we only run the exit commands.
+# For example, in initrd-bottom we don't want to unmount on normal exit.
+at_exit() {
+    # Don't stop on errors for the exit commands
+    set +e
+    # Stop trapping
+    trap - 0 HUP INT QUIT SEGV PIPE TERM
+    if [ "$1" = "-TERM" ] || [ "$_DIED" = "1" ]; then
+        eval "$_TERM_COMMANDS"
     fi
-}
-
-applet_usage() {
-    local text
-
-    text=$(re man $(ltsp_applet))
-    printf "Usage: %s\n\n%s\n\nOptions:\n%s\n" \
-        "$(echo "$text" | sed -n '/^SYNOPSIS/,/^[^ ]/s/^\(       \|$\)//p')" \
-        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/^\(       \|$\)//p')" \
-        "$(echo "$text" | sed -n '/^OPTIONS/,/^[^ ]/s/^     //p')"
-}
-
-applet_version() {
-    echo "$(ltsp_applet) $_VERSION"
+    eval "$_EXIT_COMMANDS"
+    # It's possible to manually call at_exit, run the commands, then
+    # call exit_command again (e.g. `ltsp kernel img1 img2`).
+    unset _TERM_COMMANDS
+    unset _EXIT_COMMANDS
+    unset _HAVE_TRAP
+    set -e
 }
 
 # True if can chroot into this dir
@@ -110,7 +107,7 @@ debug_shell() {
 # No need to pass a message if the failed command displays the error.
 die() {
     if [ $# -eq 0 ]; then
-        warn "Aborting $(ltsp_applet)"
+        warn "Aborting ltsp"
     else
         warn "$@"
     fi
@@ -130,26 +127,6 @@ echo() {
     printf "%s\n" "$*"
 }
 
-# On abnormal termination, we run both the term and exit commands.
-# On normal termination, we only run the exit commands.
-# For example, in initrd-bottom we don't want to unmount on normal exit.
-at_exit() {
-    # Don't stop on errors for the exit commands
-    set +e
-    # Stop trapping
-    trap - 0 HUP INT QUIT SEGV PIPE TERM
-    if [ "$1" = "-TERM" ] || [ "$_DIED" = "1" ]; then
-        eval "$_TERM_COMMANDS"
-    fi
-    eval "$_EXIT_COMMANDS"
-    # It's possible to manually call at_exit, run the commands, then
-    # call exit_command again (e.g. `ltsp kernel img1 img2`).
-    unset _TERM_COMMANDS
-    unset _EXIT_COMMANDS
-    unset _HAVE_TRAP
-    set -e
-}
-
 # You may use `at_exit "rw command"`, but not `at_exit "re command"`
 exit_command() {
     if [ "$_HAVE_TRAP" != "1" ]; then
@@ -164,6 +141,35 @@ $_TERM_COMMANDS"
         _EXIT_COMMANDS="$*
 $_EXIT_COMMANDS"
     fi
+}
+
+install_template() {
+    local src dst sedp dstdir sname sext language
+    src=$1
+    dst=$2
+    sedp=$3
+
+    if [ -e "$dst" ] && [ "$OVERWRITE" != "1" ]; then
+        die "File $dst exists but --overwrite was not specified."
+    fi
+    dstdir=${dst%/*}
+    re mkdir -p "$dstdir"
+    # Prefer localized templates, if they exist.
+    sname=${src%%.*}
+    if [ "$sname" != "$src" ]; then
+        sext=".${src#*.}"
+    else
+        unset sext
+    fi
+    language=${LANGUAGE:-$LANG}
+    for language in "${language%%:*}" "${language%%.*}" "${language%%_*}" ""; do
+        language=${language:+"-$language"}
+        test -f "$_APPLET_DIR/$sname$language$sext" || continue
+        sed "$sedp" "$_APPLET_DIR/$sname$language$sext" > "$dst"
+        echo "Installed $_APPLET_DIR/$sname$language$sext to $dst"
+        return 0
+    done
+    die "Template file $src not found."
 }
 
 # Check if parameter is a command; `command -v` isn't allowed by POSIX
@@ -271,36 +277,6 @@ rsr() {
     _RWR_SILENCE=1 rwr "$@" || return $?
 }
 
-# Run a command and return 0. Warn if it failed.
-rw() {
-    rwr "$@" || true
-}
-
-# Run a command. Warn if it failed. Return $?.
-# Don't warn if $RWR_SILENCE is set, to easily implement rs() and rsr().
-# Used like `rwr cmd1 || cmd2`.
-rwr() {
-    local want got
-
-    if [ "$1" = "!" ]; then
-        want=1
-        shift
-    else
-        want=0
-    fi
-    got=0
-    if [ "$_RWR_SILENCE" = "1" ]; then
-        "$@" >/dev/null 2>&1 || got=$?
-    else
-        "$@" || got=$?
-    fi
-    # Failed if either of them is zero and the other non-zero
-    if [ "$want" = 0 -a "$got" != 0 ] || [ "$want" != 0 -a "$got" = 0 ]; then
-        test "$_RWR_SILENCE" = "1" || warn "LTSP command failed: $*"
-    fi
-    return $got
-}
-
 # Run all the main_script() functions we already sourced
 run_main_functions() {
     local scripts script
@@ -368,6 +344,36 @@ run_parts_list() {
     | sed 's@[^\t]*\t[^\t]*\t@@'
 }
 
+# Run a command and return 0. Warn if it failed.
+rw() {
+    rwr "$@" || true
+}
+
+# Run a command. Warn if it failed. Return $?.
+# Don't warn if $RWR_SILENCE is set, to easily implement rs() and rsr().
+# Used like `rwr cmd1 || cmd2`.
+rwr() {
+    local want got
+
+    if [ "$1" = "!" ]; then
+        want=1
+        shift
+    else
+        want=0
+    fi
+    got=0
+    if [ "$_RWR_SILENCE" = "1" ]; then
+        "$@" >/dev/null 2>&1 || got=$?
+    else
+        "$@" || got=$?
+    fi
+    # Failed if either of them is zero and the other non-zero
+    if [ "$want" = 0 -a "$got" != 0 ] || [ "$want" != 0 -a "$got" = 0 ]; then
+        test "$_RWR_SILENCE" = "1" || warn "LTSP command failed: $*"
+    fi
+    return $got
+}
+
 source_scripts() {
     local scripts script
 
@@ -381,10 +387,32 @@ $scripts
 EOF
 }
 
+# Used by install_template
+textif() {
+    if [ "$1" = "1" ]; then
+        echo "$2"
+    else
+        echo "$3"
+    fi
+}
+
+usage() {
+    local text
+
+    text=$(re man ltsp $1)
+    printf "Usage: %s\n\n%s\n\nFor extensive help, run: man ltsp%s\n" \
+        "$(echo "$text" | sed -n '/^SYNOPSIS/,/^[^ ]/s/^\(       \|$\)//p')" \
+        "$(echo "$text" | sed -n '/^DESCRIPTION/,/^[^ ]/s/^\(       \|$\)//p')" \
+        "${1:+ $1}"
+}
+
+version() {
+    echo "ltsp $_VERSION"
+}
+
 # Print a message to stderr
 warn() {
     echo "$@" >&2
 }
-
 
 main "$@"
