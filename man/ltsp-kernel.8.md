@@ -2,46 +2,31 @@
 **ltsp kernel** - copy kernel from image to TFTP
 
 ## SYNOPSIS
-**ltsp kernel** [**-h**] [**-i=**_initrd_] [**-k=**_kernel_] [**-n=**_name_] [**-p=**_partition_] [-V] [_image_] ...
+**ltsp** [_ltsp-options_] **kernel** [**-k=**_kernel-initrd_] [_image_] ...
 
 ## DESCRIPTION
-Copy vmlinuz and initrd.img from an image or directory to TFTP.
+Copy vmlinuz and initrd.img from an image or chroot to TFTP.
 If _image_ is unspecified, process all of them.
-For simplicity, only directories (chroots) and raw images are supported,
-either full filesystems (ext4 etc) or full disks (VMs). They may be sparse
+For simplicity, only chroots and raw images are supported, either full
+filesystems (squashfs, ext4) or full disks (flat VMs). They may be sparse
 to preserve space. Don't use a separate /boot nor LVM in disk images.
 The targets will always be named vmlinuz and initrd.img to simplify boot.ipxe.
 
 ## OPTIONS
-**-h**, **--help**
-  Display a help message.
+See the **ltsp(8)** man page for _ltsp-options_.
 
-**-i**, **--initrd=**_path_
-  Specify the initrd path; try to autodetect if undefined.
-
-**-k**, **--kernel=**_path_
-  Specify the kernel glob; try to autodetect if undefined.
-
-**-n**, **--name=**_name_
-  Specify the image _name_; otherwise it defaults to the (parent, for
-files) directory name; or to \`**uname -m**\` in the chrootless case.
-
-**--version**
-  Display the version information.
-
-## FILES
-**/etc/ltsp/kernel.conf**
-  **INITRD=** and **KERNEL=** directives can be specified for all images
-centrally or on a per-image basis under [_image_] sections.
-
-## ENVIRONMENT
-All the long options can also be specified as environment variables in
-UPPERCASE, for example:
-```shell
-KERNEL=/boot/vmlinuz ltsp kernel ...
-```
+**-k**, **--kernel-initrd=**_line_
+  Specify a kernel glob and an initrd regex to locate them inside the _image_;
+  try to autodetect if undefined. See the EXAMPLES section below.
 
 ## EXAMPLES
+Typical use:
 ```shell
-ltsp kernel -p 1 /srv/ltsp/x86_64/x86_64-flat.vmdk
+ltsp kernel x86_64
+```
+
+Passing a glob to locate the kernel and a regex to locate the initrd in a
+Debian live CD:
+```shell
+ltsp -k"live/vmlinuz-* s|vmlinuz|initrd.img|"
 ```

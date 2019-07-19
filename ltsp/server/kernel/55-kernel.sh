@@ -7,14 +7,12 @@
 kernel_cmdline() {
     local args
 
-    args=$(re getopt -n "ltsp $_APPLET" -o "hk:V" \
-        -l "help,kernel:,version" -- "$@")
+    args=$(re getopt -n "ltsp $_APPLET" -o "k:" -l \
+        "kernel-initrd:" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
-            -h|--help) applet_usage; exit 0 ;;
-            -k|--kernel-initrd) shift; KERNEL_INITRD="$1" ;;
-            -V|--version) applet_version; exit 0 ;;
+            -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
             --) shift; break ;;
             *) die "ltsp $_APPLET: error in cmdline" ;;
         esac

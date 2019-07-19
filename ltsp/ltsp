@@ -3,7 +3,7 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# This is the entry point for all ltsp applets.
+# Main entry point for all ltsp applets
 # Execution sequence:
 # This main() > source common/ltsp/* (and config/vendor overrides)
 # > ltsp_cmdline() > ltsp/scriptname_main()s > source applet/* (and overrides)
@@ -150,7 +150,8 @@ install_template() {
     sedp=$3
 
     if [ -e "$dst" ] && [ "$OVERWRITE" != "1" ]; then
-        die "File $dst exists but --overwrite was not specified."
+        die "Configuration file already exists: $dst
+To overwrite it, run: ltsp --overwrite $_APPLET ..."
     fi
     dstdir=${dst%/*}
     re mkdir -p "$dstdir"

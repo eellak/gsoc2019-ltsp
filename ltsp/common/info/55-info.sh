@@ -2,18 +2,16 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Copy vmlinuz and initrd.img from image to TFTP
+# Display troubleshooting information about ltsp server and images
 
 info_cmdline() {
     local args
 
-    args=$(re getopt -n "ltsp $_APPLET" -o "hV" \
-        -l "help,version" -- "$@")
+    args=$(re getopt -n "ltsp $_APPLET" -o "" -l \
+        "" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
-            -h|--help) applet_usage; exit 0 ;;
-            -V|--version) applet_version; exit 0 ;;
             --) shift; break ;;
             *) die "ltsp $_APPLET: error in cmdline" ;;
         esac
@@ -23,8 +21,6 @@ info_cmdline() {
 }
 
 info_main() {
-    local tmp img_src img img_name
-
     printf "CHROOTS:\n"
     list_img_names -c
     printf "\nVMs:\n"

@@ -2,6 +2,8 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# Generic functions for all applets
+
 # Constant variables may be set in any of the following steps:
 # 1) user: environment, `VAR=value $_APPLET`
 # 2) distro: 11-ltsp-distro.sh for all applets

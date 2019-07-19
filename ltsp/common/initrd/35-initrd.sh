@@ -8,13 +8,11 @@
 initrd_cmdline() {
     local args _DST_DIR
 
-    args=$(re getopt -n "ltsp $_APPLET" -o "hV" \
-        -l "help,version" -- "$@")
+    args=$(re getopt -n "ltsp $_APPLET" -o "" -l \
+        "" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
-            -h|--help) applet_usage; exit 0 ;;
-            -V|--version) applet_version; exit 0 ;;
             --) shift ; break ;;
             *) die "ltsp $_APPLET: error in cmdline" ;;
         esac

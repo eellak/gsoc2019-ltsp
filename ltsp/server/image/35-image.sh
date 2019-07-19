@@ -6,20 +6,18 @@
 # Vendors can add to $_DST_DIR between image_main and finalize_main
 
 image_cmdline() {
-    local scripts args _DST_DIR img_name
+    local args _DST_DIR img_name
 
-    args=$(re getopt -n "ltsp $_APPLET" -o "hk:V" \
-        -l "help,kernel:,version" -- "$@")
+    args=$(re getopt -n "ltsp $_APPLET" -o "b:c:k:m:r::" -l \
+        "backup:cleanup:kernel-initrd:mksquashfs-params:revert::" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
-            -b|--backup) shift; BACKUP="$1" ;;
-            -c|--cleanup) shift; CLEANUP="$1" ;;
-            -h|--help) applet_usage; exit 0 ;;
-            -k|--kernel-initrd) shift; KERNEL_INITRD="$1" ;;
-            -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS="$1" ;;
-            -r|--revert) shift; REVERT=1 ;;
-            -V|--version) applet_version; exit 0 ;;
+            -b|--backup) shift; BACKUP=$1 ;;
+            -c|--cleanup) shift; CLEANUP=$1 ;;
+            -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
+            -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS=$1 ;;
+            -r|--revert) shift; REVERT=${1:-0} ;;
             --) shift; break ;;
             *) die "ltsp $_APPLET: error in cmdline" ;;
         esac
