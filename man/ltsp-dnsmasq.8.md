@@ -2,7 +2,7 @@
 **ltsp dnsmasq** - configure dnsmasq for LTSP
 
 ## SYNOPSIS
-**ltsp** [_ltsp-options_] **dnsmasq** [**-d=**_0|1_] [**-p=**_0|1_] [**-r=**_0|1_] [**-s=**_"dns servers"_] [**-t=**_0|1_]
+**ltsp** [_ltsp-options_] **dnsmasq** [**-d** _dns_] [**-p** _proxy-dhcp_] [**-r** _real-dhcp_] [**-s** _dns-server_] [**t** _tftp_]
 
 ## DESCRIPTION
 Install /etc/dnsmasq.d/ltsp-dnsmasq.conf, while adjusting the template with
@@ -46,5 +46,5 @@ ltsp --overwrite dnsmasq
 ```
 A dual NIC setup with the DNS service enabled:
 ```shell
-ltsp -o dnsmasq -d=1 -p=0 -s="0.0.0.0 8.8.8.8 208.67.222.222"
+ltsp -o dnsmasq -d1 -p0 --dns-server="0.0.0.0 8.8.8.8 208.67.222.222"
 ```
