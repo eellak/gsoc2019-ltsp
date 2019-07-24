@@ -5,7 +5,7 @@
 **ltsp** [_ltsp-options_] **nfs** [**-h** _nfs-home_] [**t** _nfs-tftp_]
 
 ## DESCRIPTION
-Install /etc/exports.d/ltsp-nfs.conf in order to export $EXPORTS_DIR,
+Install /etc/exports.d/ltsp-nfs.conf in order to export $BASE_DIR,
 $TFTP_DIR and $HOME_DIR.
 
 ## OPTIONS
@@ -14,11 +14,11 @@ See the **ltsp(8)** man page for _ltsp-options_.
 **-h**, **--nfs-home=**_0|1_
   Export /home over NFS3. Defaults to 0.
 Note that NFS3 is insecure for home, so by default SSHFS is used.
-To specify a different directory, set HOME_DIR= in /etc/ltsp/ltsp.conf.
+To specify a different directory, set $HOME_DIR in /etc/ltsp/ltsp.conf.
 
 **-t**, **--nfs-tftp=**_0|1_
   Export /srv/tftp/ltsp over NFS3. Defaults to 1.
-To specify a different directory, set TFTP_DIR= in /etc/ltsp/ltsp.conf.
+To specify a different directory, set $TFTP_DIR in /etc/ltsp/ltsp.conf.
 
 ## EXAMPLES
 To export only some user homes over NFS3 (insecure) while the rest still

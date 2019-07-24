@@ -37,7 +37,7 @@ LTSP directories can be configured by passing one or more of the following param
   Display a help message.
 
 **-m**, **--home-dir=**_/home_
-  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $EXPORT_DIR/images/$image.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
+  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $BASE_DIR/images/$image.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
 
 **-o**, **--overwrite**
   Overwrite all existing files. Usually applets refuse to overwrite configuration files that may have been modified by the user, like boot.ipxe.
