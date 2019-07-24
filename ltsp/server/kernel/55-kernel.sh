@@ -14,7 +14,7 @@ kernel_cmdline() {
         case "$1" in
             -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
             --) shift; break ;;
-            *) die "ltsp $_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline: $*" ;;
         esac
         shift
     done
@@ -22,7 +22,7 @@ kernel_cmdline() {
 }
 
 kernel_main() {
-    local tmp img_src img img_name
+    local tmp img_src img_name
 
     if [ "$#" -eq 0 ]; then
         img_name=$(list_img_names)

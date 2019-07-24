@@ -24,7 +24,7 @@ dnsmasq_cmdline() {
             # Note that this is fine: ltsp -t... dnsmasq -t...
             -t|--tftp) shift; TFTP=$1 ;;
             --) shift; break ;;
-            *) die "ltsp $_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline: $*" ;;
         esac
         shift
     done

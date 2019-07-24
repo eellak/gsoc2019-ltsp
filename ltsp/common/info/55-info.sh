@@ -13,7 +13,7 @@ info_cmdline() {
     while true; do
         case "$1" in
             --) shift; break ;;
-            *) die "ltsp $_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline: $*" ;;
         esac
         shift
     done

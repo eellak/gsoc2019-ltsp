@@ -5,8 +5,6 @@
 # Override /sbin/init to run some LTSP code, then restore the real init
 
 init_cmdline() {
-    local scripts
-
     warn "This is init-ltsp $*, type exit to continue booting"
     run_main_functions "$_SCRIPTS" "$@"
     # initrd-bottom may have renamed the real init
@@ -99,11 +97,9 @@ init_main() {
 
 # Get initramfs networking information into our own variables
 import_netinfo() {
-    local v script
-
     # Keep everything in space-separated lists
     if [ -z "$LTSP_MACS" ]; then
-        while read -r iface mac <&3; do
+        while read -r _iface mac <&3; do
             LTSP_MACS="$LTSP_MACS $mac"
         done 3<<EOF
 $(ip -o link show |
@@ -135,7 +131,7 @@ EOF
         # So if we have ONE TCP connection, assume it's the server.
         LTSP_SERVER=$(netstat -tun |
             sed -n 's|^tcp[^ ]* *[^ ]* *[^ ]* *[^ ]* *\([^ ]*\):[0-9]* .*|\1|p')
-        if [ "$(expr match "$LTSP_SERVER" '[0-9a-f:.]*')" = "${#LTSP_SERVER}" ]; then
+        if [ "$(expr "$LTSP_SERVER" : '[0-9a-f:.]*')" = "${#LTSP_SERVER}" ]; then
             # We need $LTSP_IFACE for network-manager blacklisting
             LTSP_IFACE=$(ip -o route get "$LTSP_SERVER" |
                 sed -n 's|.* *dev *\([^ ]*\) .*|\1|p')

@@ -19,7 +19,7 @@ image_cmdline() {
             -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS=$1 ;;
             -r|--revert) shift; REVERT=${1:-0} ;;
             --) shift; break ;;
-            *) die "ltsp $_APPLET: error in cmdline" ;;
+            *) die "ltsp $_APPLET: error in cmdline: $*" ;;
         esac
         shift
     done
@@ -38,7 +38,7 @@ Please export ALL_IMAGES=1 if you want to allow this"
 }
 
 image_main() {
-    local img_src img img_name
+    local img_src img_name
 
     img_src="$1"
     img_path=$(add_path_to_src "${img_src%%,*}")

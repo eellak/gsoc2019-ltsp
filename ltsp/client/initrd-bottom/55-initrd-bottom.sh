@@ -5,8 +5,6 @@
 # Make root writable using a tmpfs overlay and install ltsp-init
 
 initrd_bottom_cmdline() {
-    local scripts
-
     if [ -f /scripts/functions ]; then
         # Running on initramfs-tools
         re . /scripts/functions
@@ -19,7 +17,7 @@ initrd_bottom_cmdline() {
 }
 
 initrd_bottom_main() {
-    local loop img_src
+    local img_src
 
     warn "Running $0"
     kernel_variables
