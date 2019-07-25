@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Configure NFS exports for LTSP
-# Documentation=man:ltsp-nfs(8) https://ltsp.github.io/ltsp-nfs
+# Documentation=man:ltsp-nfs(8) https://ltsp.github.io/docs/ltsp-nfs
 
 # Export LTSP chroots and images
 /srv/ltsp	*(ro,async,crossmnt,no_subtree_check,no_root_squash)

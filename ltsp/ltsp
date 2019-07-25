@@ -88,7 +88,8 @@ debug_shell() {
         fi
     fi
     # Use `setsid -c` to enable job control in the shell
-    if [ "$(id -u)" = "0" ] && is_command setsid; then
+    # `id` isn't available in initramfs, check for root with test -w /
+    if test -w / && is_command setsid; then
         # TODO: this breaks Ctrl+C for server-side invocations;
         # temporarily disabled
         true setsid="setsid -c"
@@ -167,7 +168,7 @@ To overwrite it, run: ltsp --overwrite $_APPLET ..."
         language=${language:+"-$language"}
         test -f "$_APPLET_DIR/$sname$language$sext" || continue
         sed "$sedp" "$_APPLET_DIR/$sname$language$sext" > "$dst"
-        echo "Installed $_APPLET_DIR/$sname$language$sext to $dst"
+        echo "Installed $_APPLET_DIR/$sname$language$sext in $dst"
         return 0
     done
     die "Template file $src not found."

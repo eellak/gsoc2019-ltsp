@@ -84,7 +84,7 @@ init_main() {
         # lubuntu-18.04.1-desktop-i386.iso kubuntu-18.04.1-desktop-amd64.iso
         if [ ! -x /usr/bin/sshfs ]; then
             # debian live doesn't have wget
-            rw busybox wget "http://10.161.254.11:8000/sshfs-$(uname -m)" -O /usr/bin/sshfs
+            rw busybox wget "https://github.com/ltsp/binaries/releases/latest/download/sshfs-$(uname -m)" -O /usr/bin/sshfs
             rw chmod +x /usr/bin/sshfs
         fi
     fi

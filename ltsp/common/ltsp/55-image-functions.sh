@@ -153,7 +153,7 @@ add_path_to_src() {
 # The rest are passed as mount -o options (comma separated).
 # After all the commands have been processed, if /proc doesn't exist,
 # it's considered an error.
-# Examples for boot.ipxe:
+# Examples for ltsp.ipxe:
 # set nfs_simple root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} (no image required)
 # set nfs_squashfs root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} ltsp.image=ltsp.img
 # set nfs_vbox root=/dev/nfs nfsroot=${srv}:/srv/ltsp/${img} ltsp.image=${img}-flat.vmdk

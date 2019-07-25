@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Configure NFS exports for LTSP
-# Documentation=man:ltsp-nfs(8) https://ltsp.github.io/ltsp-nfs
 
 NFS_HOME=${NFS_HOME:-0}
 NFS_TFTP=${NFS_TFTP:-1}
@@ -29,7 +28,7 @@ nfs_cmdline() {
 }
 
 nfs_main() {
-    mkdir -p /etc/exports.d
+    re mkdir -p /etc/exports.d
     install_template "ltsp-nfs.exports" "/etc/exports.d/ltsp-nfs.exports" "\
 s|^/srv/ltsp|$BASE_DIR|
 s|^/srv/tftp/ltsp|$(textif "$NFS_TFTP" "$TFTP_DIR" "#$TFTP_DIR")|
