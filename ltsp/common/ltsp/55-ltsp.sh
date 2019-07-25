@@ -21,30 +21,33 @@
 # Distributions should replace "1.0" below at build time using `sed`
 _VERSION="1.0"
 BASE_DIR=${BASE_DIR:-/srv/ltsp}
-TFTP_DIR=${TFTP_DIR:-/srv/tftp/ltsp}
+TFTP_DIR=${TFTP_DIR:-/srv/tftp}
 HOME_DIR=${HOME_DIR:-/home}
 
 ltsp_cmdline() {
-    local args show_help help_param
+    local show_help help_param args
 
-    args=$(re getopt -n "ltsp" -o "+b:h::m:o::t:V" -l \
-        "base-dir:,help::,home-dir:,overwrite::,tftp-dir:,version" -- "$@")
-    eval "set -- $args"
     show_help=0
     help_param=
-    while true; do
-        case "$1" in
-            -b|--base-dir) shift; BASE_DIR=$1 ;;
-            -h|--help) shift; help_param=$1; show_help=1 ;;
-            -m|--home-dir) shift; HOME_DIR=$1 ;;
-            -o|--overwrite) shift; OVERWRITE=${1:-1} ;;
-            -t|--tftp-dir) shift; TFTP_DIR=$1; ;;
-            -V|--version) version; exit 0 ;;
-            --) shift; break ;;
-            *) die "ltsp: error in cmdline: $*" ;;
-        esac
-        shift
-    done
+    # No getopt in the initramfs; avoid it if $1 isn't an option
+    if [ "${1#-}" != "$1" ]; then
+        args=$(re getopt -n "ltsp" -o "+b:h::m:o::t:V" -l \
+            "base-dir:,help::,home-dir:,overwrite::,tftp-dir:,version" -- "$@")
+        eval "set -- $args"
+        while true; do
+            case "$1" in
+                -b|--base-dir) shift; BASE_DIR=$1 ;;
+                -h|--help) shift; help_param=$1; show_help=1 ;;
+                -m|--home-dir) shift; HOME_DIR=$1 ;;
+                -o|--overwrite) shift; OVERWRITE=${1:-1} ;;
+                -t|--tftp-dir) shift; TFTP_DIR=$1; ;;
+                -V|--version) version; exit 0 ;;
+                --) shift; break ;;
+                *) die "ltsp: error in cmdline: $*" ;;
+            esac
+            shift
+        done
+    fi
     # Support `ltsp --help`, `ltsp --help=applet` and `ltsp --help applet`
     if [ "$show_help" = "1" ]; then
         if [ -n "$help_param" ] || [ -n "$1" ]; then
