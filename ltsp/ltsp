@@ -145,11 +145,17 @@ $_EXIT_COMMANDS"
 }
 
 install_template() {
-    local src dst sedp dstdir sname sext language
+    local backup src dst sedp dstdir sname sext language
+
+    if [ "$1" = "-b" ]; then
+        backup=1
+        shift
+    else
+        backup=
+    fi
     src=$1
     dst=$2
     sedp=$3
-
     if [ -e "$dst" ] && [ "$OVERWRITE" != "1" ]; then
         die "Configuration file already exists: $dst
 To overwrite it, run: ltsp --overwrite $_APPLET ..."
@@ -167,7 +173,10 @@ To overwrite it, run: ltsp --overwrite $_APPLET ..."
     for language in "${language%%:*}" "${language%%.*}" "${language%%_*}" ""; do
         language=${language:+"-$language"}
         test -f "$_APPLET_DIR/$sname$language$sext" || continue
-        sed "$sedp" "$_APPLET_DIR/$sname$language$sext" > "$dst"
+        if [ "$backup" = "1" ] && [ -f "$dst" ]; then
+            re mv "$dst" "$dst.old"
+        fi
+        re sed "$sedp" "$_APPLET_DIR/$sname$language$sext" > "$dst"
         echo "Installed $_APPLET_DIR/$sname$language$sext in $dst"
         return 0
     done
@@ -258,6 +267,30 @@ locate_applet_scripts() {
             "/run/ltsp/$sub_dir/$_APPLET" \
             "/etc/ltsp/$sub_dir/$_APPLET"
     )
+}
+
+migrate_local_content() {
+    local dst old local_content above_content below_content
+
+    dst=$1
+    test -f "$dst" || die "migrate_local_content: $dst not found"
+    old=$dst.old
+    test -f "$old" || return 0
+    local_content=$(re sed \
+        '/^### BEGIN LOCAL CONTENT/,/^### END LOCAL CONTENT/!d' "$old")
+    test -n "$local_content" || return 0
+    # https://stackoverflow.com/questions/15184358/how-to-avoid-bash-command-substitution-to-remove-the-newline-character
+    above_content=$(re sed '/^### BEGIN LOCAL CONTENT/,$d' "$dst" && echo EOF)
+    above_content="${above_content%
+EOF}"
+    test -n "$above_content" || die "No ### BEGIN LOCAL CONTENT in $dst"
+    below_content=$(re sed '1,/^### END LOCAL CONTENT/d' "$dst")
+    test -n "$below_content" || die "No ### END LOCAL CONTENT in $dst"
+    re cat > "$dst" <<EOF
+$above_content
+$local_content
+$below_content
+EOF
 }
 
 # Run a command. Exit if it failed.

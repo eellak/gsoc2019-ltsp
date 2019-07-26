@@ -26,17 +26,41 @@ ipxe_cmdline() {
 }
 
 ipxe_main() {
-    local binary
+    local key items gotos r_items r_gotos img_name binary
 
+    # Prepare the menu text for all images and chroot
+    key=0
+    items=""
+    gotos=":images"
+    img_name=$(list_img_names -i)
+    set -- $img_name
+    for img_name in "$@"; do
+        key=$((key+1))
+        items="${items:+"$items\n"}$(printf "item --key %d %-20s %s" "$((key%10))" "$img_name" "$img_name.img")"
+        gotos=":$img_name\n$gotos"
+    done
+    r_items=""
+    r_gotos=":roots"
+    img_name=$(list_img_names -c)
+    set -- $img_name
+    for img_name in "$@"; do
+        key=$((key+1))
+        r_items="${r_items:+"$r_items\n"}$(printf "item --key %d %-20s %s" "$((key%10))" "r_$img_name" "$img_name")"
+        r_gotos=":r_$img_name\nset img $img_name \&\& goto roots\n$r_gotos"
+    done
     re mkdir -p "$TFTP_DIR/ltsp"
-    install_template "ltsp.ipxe" "$TFTP_DIR/ltsp/ltsp.ipxe" "\
+    install_template -b "ltsp.ipxe" "$TFTP_DIR/ltsp/ltsp.ipxe" "\
 s|^/srv/ltsp|$BASE_DIR|g
+s|^#.*item.*\bimages\b.*|$(textif "$items$r_items" "$items\n$r_items" "&")|
+s|^:images\$|$(textif "$items" "$gotos" "&")|
+s|^:roots\$|$(textif "$r_items" "$r_gotos" "&")|
 "
-    # Why memtest.0 from ipxe.org is preferred over the one from distributions:
+    migrate_local_content "$TFTP_DIR/ltsp/ltsp.ipxe"
+    # Prefer memtest.0 from ipxe.org over the one from distributions:
     # https://lists.ipxe.org/pipermail/ipxe-devel/2012-August/001731.html
     for binary in memtest.0 memtest.efi snponly.efi undionly.kpxe; do
         if [ "$OVERWRITE" = "1" ] || [ ! -f "$TFTP_DIR/ltsp/$binary" ]; then
-            re wget -nv "$BINARIES_URL/$binary"
+            re busybox wget "$BINARIES_URL/$binary" -O "$TFTP_DIR/ltsp/$binary"
         else
             echo "Skipping existing $TFTP_DIR/ltsp/$binary"
         fi
