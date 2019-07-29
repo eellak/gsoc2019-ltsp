@@ -17,7 +17,7 @@ image_cmdline() {
             -c|--cleanup) shift; CLEANUP=$1 ;;
             -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
             -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS=$1 ;;
-            -r|--revert) shift; REVERT=${1:-0} ;;
+            -r|--revert) shift; REVERT=${1:-1} ;;
             --) shift; break ;;
             *) die "ltsp $_APPLET: error in cmdline: $*" ;;
         esac

@@ -5,7 +5,7 @@
 # Functions for chroot/VM/squashfs manipulation, used by:
 # chroot, image, info?, ipxe?, kernel, nbd-server?, initrd-bottom
 # So we can't have /etc/ltsp/applet.conf with [sections];
-# let's put everything in a global /etc/ltsp/ltsp.conf instead
+# let's put everything in the global /etc/ltsp/ltsp.conf instead
 # We use the following terminology:
 # * img_src is a series of mount sources, for example:
 #     img1,mount-options1,,img2,mount-options2,,...
