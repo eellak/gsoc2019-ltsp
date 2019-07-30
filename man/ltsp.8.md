@@ -10,72 +10,91 @@ Run the specified LTSP _applet_ with _applet-options_. To get help with applets 
 ## APPLETS
 The following applets are currently defined:
 
-  **  chroot**: chroot into an LTSP root directory or image, for maintenance
-  **config**: configure certain parts of the LTSP server (client.conf, dnsmasq, ipxe, isc-dhcp, nbd, nfs)
-  **image**:  generate a squashfs image from a chroot directory or VM image
-  **info**:   gather support information about the LTSP installation
-  **initrd**: create the ltsp.img initrd add-on
-  **kernel**: copy the kernel and initrd from a VM image to the TFTP directory
-  **swap**:   generate and export a swapfile via NBD
+ - **chroot**: chroot into an LTSP chroot directory or image, for maintenance
+ - **client.conf**: generate a template /etc/ltsp/client.conf
+ - **dnsmasq**: configure dnsmasq for LTSP
+ - **image**: generate a squashfs image from an image source
+ - **info**: gather support information about the LTSP installation
+ - **initrd**: create the ltsp.img initrd add-on
+ - **ipxe**: install iPXE binaries and configuration in TFTP
+ - **isc-dhcp**: configure isc-dhcp-server for LTSP
+ - **kernel**: copy the kernel and initrd from an image to TFTP
+ - **nfs**: configure NFS exports for LTSP
+ - **swap**: generate and export a swapfile via NBD
 
-LTSP clients get the following applets instead; they should not be run by the user, but they do have man pages that describe that boot phase and the relevant configuration parameters:
-
-  **  init**:  after the initramfs; before /sbin/init; configures everything
-  **local**:  cache the ltsp image to a local disk
-              configure grub (pc/uefi), ipxe, local home...
-              manually invoked by the user!
-  **login**: right after authentication; clean up guest home etc
+LTSP clients also have some additional applets, like **initrd-bottom**,
+**init** and **login**, but they're not runnable by the user. See
+ltsp-client.conf(8) for more details.
 
 ## OPTIONS
-LTSP directories can be configured by passing one or more of the following parameters, but it's recommended that an /etc/ltsp/ltsp.conf configuration file is created instead, so that ltsp clients will be notified of the updated directories.
+LTSP directories can be configured by passing one or more of the following
+parameters, but it's recommended that an /etc/ltsp/ltsp.conf configuration
+file is created instead, so that you don't have to pass them in each ltsp
+command.
 
 **-b**, **--base-dir=**_/srv/ltsp_
-  This is where the chroots, images and VMs are; so when you run `ltsp kernel name`, it will search either for an image named **/srv/ltsp/images/name.img**, or for a VM named **/srv/ltsp/name.img**, or for a chroot named **/srv/ltsp/name**, if it's a directory that contains /proc. You may use symlinks for VMs, for example `ln -s / /srv/ltsp/x86_64` creates a symlink to the server installation to be used as an image source (chrootless setup), while `ln -s "/home/administrator/VirtualBox VMs/x86_32/x86_32-flat.img" /srv/ltsp/x86_32.img` specifies a VirtualBox VM as a source for 32bit clients.
-  Note that full paths are **not** supported as they'd make things more complicated; for example, `ltsp image /` would require a `--name` parameter to specify the image name; while creating the symlink allows you to run `ltsp image` later on to update all images.
+: This is where the chroots, squashfs images and virtual machine symlinks are;
+so when you run `ltsp kernel img_name`, it will search either for a squashfs
+image named **/srv/ltsp/images/img_name.img**, or for a chroot named
+**/srv/ltsp/img_name**, if it's a directory that contains /proc. Additionally,
+`ltsp image img_name` will also search for a symlink to a VM disk named
+**/srv/ltsp/img_name.img**. $BASE_DIR is exported read-only by NFSv3, so do
+not put sensitive data there.
 
 **-h**, **--help**
-  Display a help message.
+:  Display a help message.
 
 **-m**, **--home-dir=**_/home_
-  The exported directory is used by `ltsp config nfs`, to generate an appropriate /etc/exports; by `ltsp image`, to generate the squashfs file in $BASE_DIR/images/$image.img; by `ltsp config ipxe`, to create the appropriate kernel command lines for **nfsroot=**; and by `ltsp config nbd`, to create appropriate [sections], for people still using NBD and trying to match ROOTPATH between NFS/NBD.
+: The default method of making /home available to LTSP clients is SSHFS.
+In some cases security isn't an issue, and sysadmins prefer the insecure
+NFSv3 speed over SSHFS. $HOME_DIR is used by `ltsp nfs` to export the correct
+directory, if it's different to /home, and by LTSP clients to mount it.
 
 **-o**, **--overwrite**
-  Overwrite all existing files. Usually applets refuse to overwrite configuration files that may have been modified by the user, like boot.ipxe.
+: Overwrite all existing files. Usually applets refuse to overwrite
+configuration files that may have been modified by the user, like ltsp.ipxe.
 
-**-t**, **--tftp-dir=**_/srv/ltsp_
-  Used in `ltsp config dnsmasq` and in `ltsp kernel`. When running `ltsp kernel x86_64`, the vmlinuz and initrd.img will go inside **$TFTP_DIR/ltsp/x86_64**. The double "ltsp" directory there isn't pretty, and it even makes the kernel command lines longer (kernel /ltsp/x86_64/vmlinuz), but it's useful for those that use TFTP for other things too, so they don't use **/srv/ltsp** and do want all the ltsp-related stuff in a well organized TFTP subfolder. Hint: if you want to serve a chroot over NFS, and completely avoid `ltsp kernels`, you can create a symlink from /srv/ltsp/ltsp/chroot to /srv/ltsp/chroot; this won't work on Ubuntu though as vmlinuz is 0600, not 0644.
+**-t**, **--tftp-dir=**_/srv/tftp_
+: LTSP places the kernels, initrds and iPXE files in /srv/tftp/ltsp, to be
+retrieved by the clients via the TFTP protocol. The TFTP server of dnsmasq
+and tftpd-hpa are configured to use /srv/tftp as the TFTP root.
 
 **-V**, **--version**
-  Display the version information.
-
-## SPECIFYING IMAGES
-Some of the applets, like `ltsp kernel`, require one or more images. The following rules apply:
-  * Image sources may be specified as absolute paths, e.g. `ltsp image -c /`.
-  * A target name may be specified using NAME=_name_. If source is "/", it defaults to `uname -m`.
-  * Images may be specified as paths relative to $BASE_DIR, e.g. `ltsp kernel x86_64 EOL/precise-ubuntu ./images/x86_32.img`.
-  * If the source is a file, it's loop-mounted. A PARTITION=_partition_ may be specified, otherwise the first non-fat one is used, to skip the EFI partition.
-  * For files, the name of the image comes from the parent directory, so bionic-mate/bionic-mate-flat.vmdk would result in images/bionic-mate.img.
-  * Unless the parent directory is called "images", in which case the file name is preferred. So `ltsp kernel images/x86_64.img` would update the correct directory.
-  * If the source is a directory:
-    - If it contains /proc, it's bind-mounted to the target.
-    - A LOOP=_loop_ parameter can specify a file inside the directory, for example:
-    `ltsp kernel --loop=../cd/ubuntu-mate-18.04.1-desktop-amd64.iso,iso9660,loop,ro:casper/filesystem.squashfs,squashfs,loop,ro bionic-mate-sch32`
-      I.e. the syntax is "source1,fstype1,options1:source2,fstype2,options2:...".
-    - Otherwise the directory is searched for files >100MB, and the first one is tried; unless the directory is called "images".
-
-Those are many rules; but they do allow for easy commands in many use cases.
+: Display the version information.
 
 ## FILES
 **/etc/ltsp/ltsp.conf**
-  All the long options can also be specified as variables in the **ltsp.conf** configuration file in UPPERCASE, using underscores instead of hyphens.
+: All the long options can also be specified as variables in the **ltsp.conf** configuration file in UPPER_CASE, using underscores instead of hyphens.
 
 ## ENVIRONMENT
-All the long options can also be specified as environment variables in UPPERCASE, for example:
+All the long options can also be specified as environment variables in
+UPPER_CASE, for example:
+
 ```shell
 BASE_DIR=/opt/ltsp ltsp kernel ...
 ```
 
 ## EXAMPLES
+The following are the typical commands to install and maintain LTSP in
+chrootless mode:
+
 ```shell
-ltsp image /srv/ltsp/x86_64/x86_64-flat.vmdk
+# To install:
+ltsp image /
+ltsp dnsmasq
+ltsp nfs
+ltsp ipxe
+
+# To update the exported image, after changes in the server software:
+ltsp image /
+```
+
+The following are the typical commands to provide an additional x86_32
+image, assuming one uses VirtualBox. If you specifically name it x86_32,
+then the ltsp.ipxe code automatically prefers it for 32bit clients:
+
+```shell
+ln -rs $HOME/VirtualBox\ VMs/x86_32/x86_32-flat.vmdk /srv/ltsp/x86_32.img
+ltsp image x86_32
+ltsp -o ipxe  # note, this overwrites ltsp.ipxe
 ```
