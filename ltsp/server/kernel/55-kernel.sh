@@ -25,8 +25,8 @@ kernel_main() {
     local tmp img_src img_name
 
     if [ "$#" -eq 0 ]; then
-        img_name=$(list_img_names)
-        set -- $img_name
+        img_src=$(list_img_names)
+        set -- $img_src
         if [ "$#" -gt 3 ] && [ "$ALL_IMAGES" != "1" ]; then
             die "Refusing to run ltsp $_APPLET for $# detected images!
 Please export ALL_IMAGES=1 if you want to allow this"

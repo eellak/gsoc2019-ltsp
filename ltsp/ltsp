@@ -78,7 +78,7 @@ debug_shell() {
     # TODO: make this "repeat y/n" for security reasons, unless some
     # cmdline parameter is set. Also, check if stdin is valid (| pipe).
     ( umask 0077; set > /tmp/ltsp-env )
-    warn "${1:-Dropping to a shell for troubleshooting, type exit to continue:}"
+    warn "${*:-Dropping to a shell for troubleshooting, type exit to continue:}"
     # Debian defaults to SPLASH="true" and only disables it when
     # nosplash*|plymouth.enable=0 is passed in the cmdline
     if [ "$_APPLET" = "initrd-bottom" ] || [ "$_APPLET" = "init" ]; then

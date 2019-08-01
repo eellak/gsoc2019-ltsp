@@ -14,9 +14,42 @@ for mp in *.[0-9].md; do
     applet_section=${mp%.md}
     applet=${applet_section%.[0-9]}
     section=${applet_section#$applet.}
+    description=$(sed -n '2s/.*- \(.*\)/\1/p' "$mp")
     mkdir -p "man/man$section"
     # TODO: omit the current applet from SEE ALSO
-    go-md2man > "man/man$section/$applet.$section" <<EOF
+    if command -v ronn >/dev/null; then
+        ronn --manual "LTSP Manual" --organization "LTSP $VERSION" \
+            --date "$date" > "man/man$section/$applet.$section" <<EOF
+$applet($section) -- $description
+=====================================
+$(sed "1,2d" "$mp")
+## COPYRIGHT
+Copyright 2019 the LTSP team, see AUTHORS
+
+## SEE ALSO
+**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
+**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
+**ltsp-nfs**(8), **ltsp-swap**(8)
+EOF
+        test -d ../../ltsp.github.io/docs/ || continue
+        mkdir -p "../../ltsp.github.io/docs/$applet"
+        ronn --html --manual "LTSP Manual" --organization "LTSP $VERSION" \
+            --date "$date" > "../../ltsp.github.io/docs/$applet/index.html" <<EOF
+$applet($section) -- $description
+=====================================
+$(sed "1,2d" "$mp")
+## COPYRIGHT
+Copyright 2019 the LTSP team, see AUTHORS
+
+## SEE ALSO
+**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
+**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
+**ltsp-nfs**(8), **ltsp-swap**(8)
+EOF
+    else
+        go-md2man > "man/man$section/$applet.$section" <<EOF
 $applet $section $date "LTSP $VERSION"
 =====================================
 $(cat "$mp")
@@ -24,9 +57,12 @@ $(cat "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp(8)**, **ltsp chroot**(8), **ltsp client.conf**(5), **ltsp dnsmasq**(8),
-**ltsp image**(8), **ltsp info**(8), **ltsp initrd**(8), **ltsp ipxe**(8),
-**ltsp isc-dhcp**(8), **ltsp kernel**(8), **ltsp nbd**(8),
-**ltsp nfs**(8), **ltsp swap**(8)
+**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
+**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
+**ltsp-nfs**(8), **ltsp-swap**(8)
 EOF
+        # TODO: work around https://github.com/cpuguy83/go-md2man/issues/26
+        sed 's/\\~/~/g' -i "man/man$section/$applet.$section"
+    fi
 done
