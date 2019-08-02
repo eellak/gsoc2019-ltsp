@@ -43,7 +43,6 @@ Please export ALL_IMAGES=1 if you want to allow this"
         exit_command "rw rmdir '$tmp/ltsp'"
         tmp=$tmp/ltsp
         re mount_img_src "$img_src" "$tmp"
-        debug_shell
         re mkdir -p "$TFTP_DIR/ltsp/$img_name/"
         read -r vmlinuz initrd <<EOF
 $(search_kernel "$tmp" | head -n 1)
@@ -54,6 +53,7 @@ EOF
         else
             warn "Could not locate vmlinuz and initrd.img in $img_src"
         fi
+        # TODO: echo a new kernel dir was created, remember to run: ltsp ipxe
         # Unmount everything and continue with the next image
         rw at_exit -EXIT
     done

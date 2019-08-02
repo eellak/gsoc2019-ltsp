@@ -3,18 +3,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Generate a squashfs image from an image source
-# Vendors can add to $_DST_DIR between image_main and finalize_main
+# Vendors can add to $_COW_DIR between image_main and mksquashfs_main
 
 image_cmdline() {
-    local args _DST_DIR img_name
+    local args _COW_DIR img_src
 
-    args=$(re getopt -n "ltsp $_APPLET" -o "b:c:k:m:r::" -l \
-        "backup:cleanup:kernel-initrd:mksquashfs-params:revert::" -- "$@")
+    args=$(re getopt -n "ltsp $_APPLET" -o "b:c:i:k:m:r::" -l \
+        "backup:cleanup:ionice:kernel-initrd:mksquashfs-params:revert::" -- "$@")
     eval "set -- $args"
     while true; do
         case "$1" in
             -b|--backup) shift; BACKUP=$1 ;;
             -c|--cleanup) shift; CLEANUP=$1 ;;
+            -i|--ionice) shift; IONICE=$1 ;;
             -k|--kernel-initrd) shift; KERNEL_INITRD=$1 ;;
             -m|--mksquashfs-params) shift; MKSQUASHFS_PARAMS=$1 ;;
             -r|--revert) shift; REVERT=${1:-1} ;;
@@ -24,32 +25,104 @@ image_cmdline() {
         shift
     done
     if [ "$#" -eq 0 ]; then
-        img_name=$(list_img_names)
-        set -- $img_name
+        img_src=$(list_img_names)
+        set -- $img_src
         if [ "$#" -gt 3 ] && [ "$ALL_IMAGES" != "1" ]; then
             die "Refusing to run ltsp $_APPLET for $# detected images!
 Please export ALL_IMAGES=1 if you want to allow this"
         fi
     fi
-    for img_name in "$@"; do
-        _DST_DIR=""
-        run_main_functions "$_SCRIPTS" "$img_name"
+    for img_src in "$@"; do
+        if [ "$REVERT" = "1" ]; then
+            re revert "$img_src"
+        else
+            _COW_DIR=""
+            run_main_functions "$_SCRIPTS" "$img_src"
+        fi
     done
 }
 
 image_main() {
-    local img_src img_name
+    local img_src img_path
+
+    img_src="$1"
+    img_path=$(add_path_to_src "${img_src%%,*}")
+    _IMG_NAME=$(img_path_to_name "$img_path")
+    re test "image_main:$_IMG_NAME" != "image_main:"
+    _COW_DIR=$(re mktemp -d)
+    exit_command "rw rmdir '$_COW_DIR'"
+    # _COW_DIR has mode=0700; use a subdir to hide the mount from users
+    _COW_DIR="$_COW_DIR/ltsp"
+    re mkdir -p "$_COW_DIR"
+    exit_command "rw rmdir '$_COW_DIR'"
+    re mount_img_src "$img_src" "$_COW_DIR"
+    # Before doing an overlay, let's make sure the underlying file system
+    # isn't being rapidly modified, by disabling package management
+    re lock_package_management
+    exit_command unlock_package_management
+    overlay "$_COW_DIR" "$_COW_DIR"
+}
+
+lock_package_management() {
+    local lock
+
+    unset _LOCKPID
+    # Insert lock paths for other distributions here
+    for lock in var/lib/dpkg/lock; do
+        lock="$_COW_DIR/$lock"
+        test -f "$lock" && break
+    done
+    if [ ! -f "$lock" ]; then
+        warn "Package management locking isn't supported in your distribution, continuing without it..."
+        return 0
+    fi
+    if lsof -t "$lock"; then
+        warn "A package management process is active, waiting for it to finish..."
+        warn "Press Ctrl+C to abort"
+        while lsof -t "$lock" >/dev/null; do
+            sleep 10
+        done
+    fi
+    tail -F "$lock" &
+    _LOCKPID=$!
+}
+
+revert() {
+    local img_src img_path img_name
 
     img_src="$1"
     img_path=$(add_path_to_src "${img_src%%,*}")
     img_name=$(img_path_to_name "$img_path")
-    re test "image_main:$img_name" != "image_main:"
-    _DST_DIR=$(re mktemp -d)
-    exit_command "rw rmdir '$_DST_DIR'"
-    # _DST_DIR has mode=0700; use a subdir to hide the mount from users
-    _DST_DIR="$_DST_DIR/ltsp"
-    re mkdir -p "$_DST_DIR"
-    exit_command "rw rmdir '$_DST_DIR'"
-    re mount_img_src "$img_src" "$_DST_DIR"
-    overlay "$_DST_DIR" "$_DST_DIR"
+    re test "revert:$img_name" != "revert:"
+    test -f "$BASE_DIR/images/$img_name.img.old" ||
+        die "Cannot revert, backup is missing: $BASE_DIR/images/$img_name.img.old"
+    if [ -f "$BASE_DIR/images/$img_name.img" ]; then
+        # Swap old with new file
+        re mv "$BASE_DIR/images/$img_name.img" "$BASE_DIR/images/$img_name.img.tmp"
+        re mv "$BASE_DIR/images/$img_name.img.old" "$BASE_DIR/images/$img_name.img"
+        re mv "$BASE_DIR/images/$img_name.img.tmp" "$BASE_DIR/images/$img_name.img.old"
+        echo "Swapped $BASE_DIR/images/$img_name.img with $BASE_DIR/images/$img_name.img.old"
+    else
+        re mv "$BASE_DIR/images/$img_name.img.old" "$BASE_DIR/images/$img_name.img"
+        echo "Moved $BASE_DIR/images/$img_name.img.old to $BASE_DIR/images/$img_name.img"
+    fi
+    re "$0" kernel "$BASE_DIR/images/$img_name.img"
+}
+
+unlock_package_management() {
+    local pid
+
+    test -n "$_LOCKPID" || return 0
+    pid=$_LOCKPID
+    unset _LOCKPID
+    # If the tail process was already terminated, exit
+    grep -qs ^tail "/proc/$pid/cmdline" || return 0
+    rw kill "$pid"
+    # Package management unlocking happens right before `umount`,
+    # so wait for the process kill / file unlock before continuing
+    sleep 0.2
+    grep -qs ^tail "/proc/$pid/cmdline" || return 0
+    # If it's not killed by now, it's hanged, so force-kill it
+    rw kill -9 "$pid"
+    sleep 0.2
 }

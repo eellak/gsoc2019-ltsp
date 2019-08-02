@@ -2,7 +2,7 @@
 **ltsp image** - generate a squashfs image from an image source
 
 ## SYNOPSIS
-**ltsp** [_ltsp-options_] **image** [**-b** _backup_] [**-c** _cleanup_]  [**-k** _kernel-initrd_] [**-m** _mksquashfs-params_] [**-r** _revert_] [_image_] ...
+**ltsp** [_ltsp-options_] **image** [**-b** _backup_] [**-c** _cleanup_] [**-i** _ionice_] [**-k** _kernel-initrd_] [**-m** _mksquashfs-params_] [**-r** _revert_] [_image_] ...
 
 ## DESCRIPTION
 Compress a virtual machine image or chroot directory into a squashfs image,
@@ -20,6 +20,10 @@ See the **ltsp(8)** man page for _ltsp-options_.
 : Create a writeable overlay on top of the image source and temporarily
 remove user accounts and sensitive data before calling mksquashfs.
 Defaults to 1.
+
+**-i**, **--ionice=**_cmdline_
+: Set a prefix command to run mksquashfs with a lower priority, or specify
+"" to disable it completely. Defaults to `nice ionice -c3`.
 
 **-k**, **--kernel-initrd=**_glob-regex_
 : Pass this parameter to the `ltsp kernel` call after the squashfs creation.
@@ -149,10 +153,11 @@ ltsp image /
 ```
 
 Compress the /srv/ltsp/x86_64 chroot or the /srv/ltsp/x86_64.img virtual
-machine image, whichever exists of those two, into /srv/ltsp/images/x86_64.img:
+machine image, whichever exists of those two, into /srv/ltsp/images/x86_64.img,
+while disabling ionice:
 
 ```shell
-ltsp image x86_64
+ltsp image --ionice="" x86_64
 ```
 
 Specify an absolute path to a virtual machine image:
@@ -161,8 +166,8 @@ Specify an absolute path to a virtual machine image:
 ltsp image /home/user/VirtualBox\ VMs/x86_32/x86_32-flat.vmdk
 ```
 
-Revert to the the previous version of an image:
+Revert to the the previous version of the "chrootless" image:
 
 ```shell
-ltsp image -r
+ltsp image -r /
 ```
