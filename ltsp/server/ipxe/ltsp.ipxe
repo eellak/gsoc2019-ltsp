@@ -15,6 +15,7 @@ isset ${proxydhcp/dhcp-server} && set srv ${proxydhcp/dhcp-server} || set srv ${
 
 # Define cmdline parameters common to all LTSP clients
 set cmdline_ltsp BOOTIF=01-${mac:hexhyp}
+set menu-timeout 5000
 
 goto ${mac} || goto start
 # Define client-specific settings, like the hostname, the menu default
@@ -29,8 +30,6 @@ goto start
 set hostname pc02
 set cmdline_client nolapic
 goto start
-
-set menu-timeout 5000
 
 ### END LOCAL CONTENT
 

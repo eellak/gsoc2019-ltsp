@@ -67,13 +67,14 @@ init_main() {
     rw sed "s|\bserver\b|replaced-server|g" -i /etc/hosts
     printf "10.161.254.11\tserver\n" >> /etc/hosts
     # TODO: remove: disable autologin
-    rw rm /etc/lightdm/lightdm.conf
+    rw rm -f /etc/lightdm/lightdm.conf
+    rw setupcon
     # TODO: remove: create some test users to see how DMs handle them
     blank=$(python3 -c 'import crypt; print(crypt.crypt(""))')
-    echo -e '1\n1' | adduser --gecos '' b; usermod -p "$blank" b
-    echo -e '1\n1' | adduser --gecos '' l; passwd -l l
-    echo -e '1\n1' | adduser --gecos '' np; passwd -d np
-    echo -e '1\n1' | adduser --gecos '' p
+    printf '1\n1\n' | adduser --gecos '' b; usermod -p "$blank" b
+    printf '1\n1\n' | adduser --gecos '' l; passwd -l l
+    printf '1\n1\n' | adduser --gecos '' np; passwd -d np
+    printf '1\n1\n' | adduser --gecos '' p
     #NFS_HOME=1
     if [ -n "$NFS_HOME" ]; then
         rw /usr/lib/klibc/bin/nfsmount 10.161.254.11:/var/rw/home "/home"
@@ -93,52 +94,6 @@ init_main() {
     free
     uname -a
     echo ========================
-}
-
-# Get initramfs networking information into our own variables
-import_netinfo() {
-    # Keep everything in space-separated lists
-    if [ -z "$LTSP_MACS" ]; then
-        while read -r _iface mac <&3; do
-            LTSP_MACS="$LTSP_MACS $mac"
-        done 3<<EOF
-$(ip -o link show |
-    sed -n 's|[^ ]* *\([^:]*\).*link/ether *\([^ ]*\) .*|\1 \2|p')
-EOF
-        # Remove initial space
-        LTSP_MACS=${LTSP_MACS# }
-    fi
-
-    if [ -z "$LTSP_IPS" ]; then
-        while read -r ip <&3; do
-            case "$ip" in
-                127.0.0.1|::1) ;;
-                *) LTSP_IPS="$LTSP_IPS $ip" ;;
-            esac
-        done 3<<EOF
-$(ip -o address show |
-    sed -n 's|[^ ]* [^ ]* *inet[^ ]* * \([^ /]*\).*|\1|p')
-EOF
-        LTSP_IPS=${LTSP_IPS# }
-    fi
-
-    if [ -z "$LTSP_SERVER" ] && [ -n "$LTSP_IPS" ]; then
-        # Now we want to detect the LTSP server.
-        # ROOTSERVER may be invalid in case of proxyDHCP.
-        # `ps -fC nbd-client` doesn't work as it's just a kernel thread.
-        # It may be available in /proc/cmdline, but it's complex to check
-        # for all the variations of ip=, root=, netroot=, nbdroot= etc.
-        # So if we have ONE TCP connection, assume it's the server.
-        LTSP_SERVER=$(netstat -tun |
-            sed -n 's|^tcp[^ ]* *[^ ]* *[^ ]* *[^ ]* *\([^ ]*\):[0-9]* .*|\1|p')
-        if [ "$(expr "$LTSP_SERVER" : '[0-9a-f:.]*')" = "${#LTSP_SERVER}" ]; then
-            # We need $LTSP_IFACE for network-manager blacklisting
-            LTSP_IFACE=$(ip -o route get "$LTSP_SERVER" |
-                sed -n 's|.* *dev *\([^ ]*\) .*|\1|p')
-        else
-            unset LTSP_SERVER
-        fi
-    fi
 }
 
 patch_networking() {
