@@ -59,12 +59,18 @@ ltsp_cmdline() {
         usage 1
     fi
     # "$@" is the applet parameters; don't use it for the ltsp main functions
-    run_main_functions "$_SCRIPTS"
+    re run_main_functions "$_SCRIPTS"
     _APPLET="$1"; shift
+    # client.conf is evaluated on every `ltsp applet` call but only on clients
+    if [ -d /run/ltsp/client ] && [ -f /etc/ltsp/client.conf ]; then
+        re eval_ini
+    fi
     # We could put the rest of the code below in an ltsp_main() function,
     # but we want ltsp/scriptname_main()s to finish before any applet starts
-    locate_applet_scripts "$_APPLET"
+    re locate_applet_scripts "$_APPLET"
     # Remember, locate_applet_scripts has just updated $_SCRIPTS
-    source_scripts "$_SCRIPTS"
-    "$_APPLET_FUNCTION" "$@"
+    re source_scripts "$_SCRIPTS"
+    re run_directives "^PRE_${_APPLET}_"
+    re "$_APPLET_FUNCTION" "$@"
+    re run_directives "^POST_${_APPLET}_"
 }

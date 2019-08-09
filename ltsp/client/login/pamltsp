@@ -106,7 +106,7 @@ EOF
     # jessie-mate breaks with IdentityFile=/dev/null and shows:
     #   Enter passphrase for key '/dev/null':
     # It works with IdentityFile=/nonexistent
-    set -- -F /dev/null -o UserKnownHostsFile="${_SELF%/*}/ssh_known_hosts" \
+    set -- -F /dev/null -o UserKnownHostsFile="/etc/ltsp/ssh_known_hosts" \
         -o IdentitiesOnly=yes -o IdentityFile=/nonexistent \
         -o NumberOfPasswordPrompts=1
     unset success

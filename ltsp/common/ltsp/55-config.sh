@@ -28,18 +28,18 @@ $(set | grep "$ex")
 EOF
 }
 
-get_applet_config() {
+eval_ini() {
     local config applet
 
-    config=$1
+    config=${1:-/etc/ltsp/client.conf}
     applet=${2:-$_APPLET}
     eval "$(ini2sh "$config")" || die "Error while evaluating $config"
     re network_vars
-    re section_call unnamed default "$LTSP_MAC" "$LTSP_IP"
+    re section_call unnamed default "$MAC_ADDRESS" "$IP_ADDRESS"
     # MAC/IP sections are allowed to set HOSTNAME
     re section_call "$HOSTNAME"
     if [ "${applet:-ltsp}" != "ltsp" ]; then
-        re section_call "$applet/default" "$applet/$LTSP_MAC" "$applet/$LTSP_IP" "$applet/$HOSTNAME"
+        re section_call "$applet/default" "$applet/$MAC_ADDRESS" "$applet/$IP_ADDRESS" "$applet/$HOSTNAME"
     fi
 }
 
@@ -155,10 +155,9 @@ To overwrite it, run: ltsp --overwrite $_APPLET ..."
 }
 
 kernel_vars() {
-    test "$kernel_vars" = "1" && return 0
-
     # Exit if already evaluated
-    kernel_vars=1
+    test "$kernel_vars" = "1" && return 0 || kernel_vars=1
+
     # Extreme scenario: ltsp.image="/path/to ltsp.vbox=1"
     # We don't want that to set VBOX=1.
     # Plan: replace spaces between quotes with \001,
@@ -189,7 +188,7 @@ $(awk 'BEGIN { FS=""; }
             if (tolower(vars[i]) ~ /^ltsp.[a-zA-Z][-a-zA-Z0-9_]*=/) {
                 varvalue=substr(vars[i], 6)
                 eq=index(varvalue,"=")
-                var="LTSP_" toupper(substr(varvalue, 1, eq-1))
+                var=toupper(substr(varvalue, 1, eq-1))
                 gsub("-", "_", var)
                 value=substr(varvalue, eq+1)
                 printf("%s=%s\n", var, value)
@@ -223,23 +222,33 @@ $below_content
 EOF
 }
 
-# We only care about the main IP/MAC etc, not all of them
+# We care about the IP/MAC used to connect to the LTSP server, not all of them
 # To handle multiple MACs in client.conf, use LIKE=
 network_vars() {
-    test -n "$LTSP_IFACE" && test -n "$LTSP_IP" && test -n "$LTSP_MAC" &&
+    test -n "$DEVICE" && test -n "$IP_ADDRESS" && test -n "$MAC_ADDRESS" &&
         return 0
-    read -r LTSP_GATEWAY LTSP_IFACE LTSP_IP <<EOF
+    read -r GATEWAY DEVICE IP_ADDRESS <<EOF
 $(re ip -o route get 192.168.67.1 |
     sed -n 's/.*via *\([0-9.]*\) .*dev \([^ ]*\) .*src *\([0-9.]*\) .*/\1 \2 \3/p')
 EOF
-    re test "LTSP_GATEWAY=$LTSP_GATEWAY" != "LTSP_GATEWAY="
-    re test "LTSP_IFACE=$LTSP_IFACE" != "LTSP_IFACE="
-    re test "LTSP_IP=$LTSP_IP" != "LTSP_IP="
-    read -r LTSP_MAC <<EOF
-$(re ip -o link show dev "$LTSP_IFACE" |
+    re test "GATEWAY=$GATEWAY" != "GATEWAY="
+    re test "DEVICE=$DEVICE" != "DEVICE="
+    re test "IP_ADDRESS=$IP_ADDRESS" != "IP_ADDRESS="
+    read -r MAC_ADDRESS <<EOF
+$(re ip -o link show dev "$DEVICE" |
     sed -n 's|.* link/ether \([0-9a-f:]*\) .*|\1|p')
 EOF
-    re test "LTSP_MAC=$LTSP_MAC" != "LTSP_MAC="
+    re test "MAC_ADDRESS=$MAC_ADDRESS" != "MAC_ADDRESS="
+}
+
+# Run directives like PRE_INIT_XORG="ln -sf ../ltsp/xorg.conf /etc/X11/xorg.conf"
+run_directives() {
+    local directives
+
+    directives=$(echo_values "$1")
+    test -n "$directives" || continue
+    debug "Running $1: $directives"
+    re eval "$directives"
 }
 
 # Used by install_template

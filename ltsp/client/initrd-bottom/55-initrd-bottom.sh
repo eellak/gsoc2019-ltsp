@@ -20,7 +20,7 @@ initrd_bottom_main() {
     local img_src
 
     warn "Running $0"
-    kernel_variables
+    kernel_vars
     if [ -n "$LTSP_IMAGE" ]; then
         img_src=$LTSP_IMAGE
         # If it doesn't start with slash, it's relative to $rootmnt
@@ -37,20 +37,23 @@ initrd_bottom_main() {
 }
 
 install_ltsp() {
-    re cp -a /usr/share/ltsp/run/. /run/ltsp/.
-    # Remove run to avoid rsync'ing it to $rootmnt
-    re rm -rf /usr/share/ltsp/run
-    re ln -sf ../share/ltsp/ltsp "$rootmnt/usr/sbin/ltsp"
     # Rsync saves space, but it's not available e.g. in stretch-mate-sch
     if [ -x "$rootmnt/usr/bin/rsync" ]; then
         # Running rsync outside the chroot fails because of missing libraries
         re mount --bind /usr/share/ltsp "$rootmnt/tmp"
         re chroot "$rootmnt" rsync -a --delete /tmp/ /usr/share/ltsp
         re umount "$rootmnt/tmp"
+        re mount --bind /etc/ltsp "$rootmnt/tmp"
+        re chroot "$rootmnt" rsync -a --delete /tmp/ /etc/ltsp
+        re umount "$rootmnt/tmp"
     else
         re rm -rf "$rootmnt/usr/share/ltsp"
         re cp -a /usr/share/ltsp "$rootmnt/usr/share/"
+        re rm -rf "$rootmnt/etc/ltsp"
+        re cp -a /etc/ltsp "$rootmnt/etc/"
     fi
+    # Symlink the ltsp binary
+    re ln -sf ../share/ltsp/ltsp "$rootmnt/usr/sbin/ltsp"
     # To avoid specifying an init=, we override the real init.
     # We can't mount --bind as it's in use by libraries and can't be unmounted.
     re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"

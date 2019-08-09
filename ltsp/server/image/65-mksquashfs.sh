@@ -7,6 +7,7 @@
 mksquashfs_main() {
     local ef_upstream ef_local
 
+    debug_shell 'Ready to call mksquashfs; type `exit 1` to cancel'
     # Unset IONICE means use the default; IONICE="" means don't use anything
     if [ -z "${IONICE+nonempty}" ]; then
         is_command nice && IONICE=nice
@@ -27,7 +28,7 @@ mksquashfs_main() {
         unset ef_upstream
     fi
     re mkdir -p "$BASE_DIR/images"
-    # -regex would be nicer, but: https://stackoverflow.com/questions/57304278
+    # -regex might be nicer: https://stackoverflow.com/questions/57304278
     re $IONICE mksquashfs  "$_COW_DIR" "$BASE_DIR/images/$_IMG_NAME.img.tmp" \
         -noappend -wildcards ${ef_upstream:+-ef "$ef_upstream"} \
         ${ef_local:+-ef "$ef_local"} $MKSQUASHFS_PARAMS

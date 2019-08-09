@@ -23,18 +23,21 @@ initrd_cmdline() {
 }
 
 initrd_main() {
-    # The run directory will be moved to /run/ltsp/client
-    re mkdir -p "$_DST_DIR/usr/share/ltsp/run"
+    # The /usr/share/ltsp and /etc/ltsp directories are copied to the
+    # initrd, and later on to the ltsp client file system
+    re mkdir -p "$_DST_DIR/usr/share/ltsp"
     re cp -a "$_LTSP_DIR/client" "$_LTSP_DIR/common" "$_LTSP_DIR/ltsp" \
         "$_DST_DIR/usr/share/ltsp/"
     re mkdir -p "$_DST_DIR/conf/conf.d"
     # Busybox doesn't support ln -r
-    re ln -s /usr/share/ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf \
+    re ln -s ../../usr/share/ltsp/client/initrd-bottom/initramfs-tools/ltsp-hook.conf \
         "$_DST_DIR/conf/conf.d/ltsp.conf"
-    if [ -f /etc/ltsp/client.conf ]; then
-        # TODO: or possibly in the initrd-bottom dir...
-        re cp -a / etc/ltsp/client.conf "$_DST_DIR/usr/share/ltsp/run/"
+    re mkdir -p "$_DST_DIR/etc/ltsp"
+    if [ -d /etc/ltsp ]; then
+        re cp -a /etc/ltsp/. "$_DST_DIR/etc/ltsp/"
     fi
     # Copy server public ssh keys; prepend "server" to each entry
-    rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > "$_DST_DIR/usr/share/ltsp/client/login/ssh_known_hosts"
+    test -f "$_DST_DIR/etc/ltsp/ssh_known_hosts" ||
+        rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > \
+            "$_DST_DIR/etc/ltsp/ssh_known_hosts"
 }
