@@ -51,10 +51,9 @@ ssh_host_keys() {
 
     for t in dsa ecdsa ed25519 rsa; do
         test -f "$_COW_DIR/etc/ssh/ssh_host_${t}_key" || continue
+        re rm -v "$_COW_DIR/etc/ssh/ssh_host_${t}_key"
         if is_command ssh-keygen; then
             ssh-keygen -f "$_COW_DIR/etc/ssh/ssh_host_${t}_key" -N '' -t "$t"
-        else
-            re rm -v "$_COW_DIR/etc/ssh/ssh_host_${t}_key"
         fi
     done
 }

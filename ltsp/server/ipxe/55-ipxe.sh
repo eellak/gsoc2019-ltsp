@@ -67,7 +67,8 @@ s|^:roots\$|$(textif "$r_items" "$r_gotos" "&")|
         # https://lists.ipxe.org/pipermail/ipxe-devel/2012-August/001731.html
         for binary in memtest.0 memtest.efi snponly.efi undionly.kpxe; do
             if [ "$OVERWRITE" = "1" ] || [ ! -f "$TFTP_DIR/ltsp/$binary" ]; then
-                re busybox wget "$BINARIES_URL/$binary" -O "$TFTP_DIR/ltsp/$binary"
+                echo "Downloading $BINARIES_URL/$binary"
+                re wget -q "$BINARIES_URL/$binary" -O "$TFTP_DIR/ltsp/$binary" ||
             else
                 echo "Skipping existing $TFTP_DIR/ltsp/$binary"
             fi

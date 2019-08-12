@@ -7,7 +7,6 @@
 mksquashfs_main() {
     local ef_upstream ef_local
 
-    debug_shell 'Ready to call mksquashfs; type `exit 1` to cancel'
     # Unset IONICE means use the default; IONICE="" means don't use anything
     if [ -z "${IONICE+nonempty}" ]; then
         is_command nice && IONICE=nice

@@ -21,8 +21,8 @@ initrd_bottom_main() {
 
     warn "Running $0"
     kernel_vars
-    if [ -n "$LTSP_IMAGE" ]; then
-        img_src=$LTSP_IMAGE
+    if [ -n "$IMAGE" ]; then
+        img_src=$IMAGE
         # If it doesn't start with slash, it's relative to $rootmnt
         if [ "${img_src#/}" = "$img_src" ]; then
             img_src="$rootmnt/$img_src"
@@ -32,7 +32,7 @@ initrd_bottom_main() {
         die "$rootmnt/proc doesn't exist and ltsp.image wasn't specified"
     fi
     test -d "$rootmnt/proc" || die "$rootmnt/proc doesn't exist in initrd-bottom"
-    test "$LTSP_OVERLAY" = "0" || re overlay_root
+    test "$OVERLAY" = "0" || re overlay_root
     re install_ltsp
 }
 

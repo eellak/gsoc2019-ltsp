@@ -77,23 +77,25 @@ init_main() {
     rw rm -f /etc/lightdm/lightdm.conf
     rw setupcon
     # TODO: remove: create some test users to see how DMs handle them
-    blank=$(python3 -c 'import crypt; print(crypt.crypt(""))')
+    blank=$(rw python3 -c 'import crypt; print(crypt.crypt(""))')
     printf '1\n1\n' | adduser --gecos '' b; usermod -p "$blank" b
     printf '1\n1\n' | adduser --gecos '' l; passwd -l l
     printf '1\n1\n' | adduser --gecos '' np; passwd -d np
     printf '1\n1\n' | adduser --gecos '' p
-    if [ -n "$NFS_HOME" ]; then
-        rw /usr/lib/klibc/bin/nfsmount "$SERVER:/srv/home" "/home"
-    else
-        # SSHFS and DM logins tested on:
-        # bionic-mate-sch32 bionic-minimal bionic-ubuntu buster-gnome
-        # jessie-mate (slow) stretch-mate-sch (too-slow. oh; networking/lack of internet?!)
-        # lubuntu-18.04.1-desktop-i386.iso kubuntu-18.04.1-desktop-amd64.iso
-        if [ ! -x /usr/bin/sshfs ]; then
-            # debian live doesn't have wget
-            rw busybox wget "https://github.com/ltsp/binaries/releases/latest/download/sshfs-$(uname -m)" -O /usr/bin/sshfs
-            rw chmod +x /usr/bin/sshfs
+    if [ "$NFS_HOME" = "1" ]; then
+        # mount.nfs means nfs-common installed
+        # -o nolock bypasses the need for a portmap daemon
+        # TODO: configurable home; also maybe put it in fstab...
+        if is_command mount.nfs; then
+            re mount -t nfs -o nolock "$SERVER:/srv/home" "/home"
+        else
+            re busybox mount -t nfs -o nolock "$SERVER:/srv/home" "/home"
         fi
+    fi
+    # Some live CDs don't have sshfs; allow the user to provide it
+    if [ ! -x /usr/bin/sshfs ] && [ -x "/etc/ltsp/bin/sshfs-$(uname -m)" ]
+    then
+        rw ln -s "../../etc/ltsp/bin/sshfs-$(uname -m)" /usr/bin/sshfs
     fi
 }
 

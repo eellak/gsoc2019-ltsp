@@ -13,6 +13,7 @@ main() {
     # Prefer `false || false` as it exits while `false && false` doesn't
     set -e
 
+    re busybox_fallbacks
     # Usually this script is called from a symlink like /usr/sbin/ltsp,
     # so $0 points to the ltsp source directory. If that's not the case,
     # assume we're sourced, and search for the source in /usr/share/ltsp.
@@ -57,6 +58,33 @@ at_exit() {
     unset _EXIT_COMMANDS
     unset _HAVE_TRAP
     set -e
+}
+
+# For the external tools we need that are also provided by busybox,
+# if some tool doesn't exist, create a namesake function that calls busybox.
+# `/usr/lib/initramfs-tools/bin/busybox` shows the smallest list of tools.
+busybox_fallbacks() {
+    local tool
+
+    if ! is_command busybox; then
+        warn "Busybox not found?!"
+        return 0
+    fi
+    for tool in awk blockdev cat chgrp chmod chown chroot chvt cp \
+        cpio cut date df env expr find getopt grep head hostname id \
+        insmod ionice ip kill killall ln logger losetup ls lsmod \
+        mkdir mktemp modprobe mount mv nc netstat partprobe pidof ping \
+        poweroff ps pwd readlink rm rmdir rmmod sed setsid sleep sort \
+        swapoff swapon switch_root sync tee touch tr truncate umount \
+        uname wc
+    do
+        # Periodically, prefix a "true" to the following line and test all
+        # applets to see if we are indeed compatible with the busybox syntax
+        ! is_command "$tool" || continue
+        eval "$tool() {
+    busybox $tool \"\$@\"
+}"
+    done
 }
 
 # Print a message to stderr if $LTSP_DEBUG is appropriately set
@@ -221,14 +249,6 @@ run_main_functions() {
 $(echo "$scripts" | sed -e 's/.*\///' -e 's/[^[:alpha:]]*\([^.]*\).*/\1/g' -e 's/[^[:alnum:]]/_/g')
 EOF
 }
-
-# TODO: dracut doesn't have find, but it can be crudely simulated with bash
-# Currently simulating only: find $DIR -type f
-if ! is_command find; then
-find() {
-    bash -c 'shopt -s globstar; for f in '"$1"'/**; do if [ "${f%.sh}" != "$f" ]; then echo "$f"; fi; done | sort'
-}
-fi
 
 # Input: two optional `find` parameters and an ordered list of directories.
 # Output: a list of files, including their paths, ordered by their basenames.

@@ -246,7 +246,7 @@ run_directives() {
     local directives
 
     directives=$(echo_values "$1")
-    test -n "$directives" || continue
+    test -n "$directives" || return 0
     debug "Running $1: $directives"
     re eval "$directives"
 }
