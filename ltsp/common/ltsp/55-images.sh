@@ -220,6 +220,8 @@ img_src=$img_src
             # at that point mounts it under /tmp/tmp.Sji338BQsB/ltsp/media!
             warn "Running: mount --bind --make-private -o ${options:-ro} $img_path $dst/$subdir"
             re mount --bind --make-private -o "${options:-ro}" "$img_path" "$dst/$subdir"
+            # _LOCKROOT is needed for lock_package_management()
+            _LOCKROOT="$img_path"
             exit_command "rw umount '$dst/$subdir'"
         elif [ -e "$img_path" ]; then
             re mount_file "$img_path" "$dst/$subdir" "$options" "$fstype" "$partition"

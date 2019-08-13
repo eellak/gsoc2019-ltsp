@@ -55,36 +55,37 @@ image_main() {
     _COW_DIR="$_COW_DIR/ltsp"
     re mkdir -p "$_COW_DIR"
     exit_command "rw rmdir '$_COW_DIR'"
+    unset _LOCKROOT
     re mount_img_src "$img_src" "$_COW_DIR"
     # Before doing an overlay, let's make sure the underlying file system
     # isn't being rapidly modified, by disabling package management
     re lock_package_management
-    exit_command unlock_package_management
-    overlay "$_COW_DIR" "$_COW_DIR"
+    re overlay "$_COW_DIR" "$_COW_DIR"
 }
 
 lock_package_management() {
-    local lock
+    local lock pid
 
-    unset _LOCKPID
+    # Lock needs write access; it's only needed for chroots and chrootless
+    test -n "$_LOCKROOT" || return 0
+
     # Insert lock paths for other distributions here
     for lock in var/lib/dpkg/lock; do
-        lock="$_COW_DIR/$lock"
+        lock="$_LOCKROOT/$lock"
         test -f "$lock" && break
     done
     if [ ! -f "$lock" ]; then
         warn "Package management locking isn't supported in your distribution, continuing without it..."
         return 0
     fi
-    if lsof -t "$lock"; then
-        warn "A package management process is active, waiting for it to finish..."
-        warn "Press Ctrl+C to abort"
-        while lsof -t "$lock" >/dev/null; do
-            sleep 10
-        done
+    echo "Trying to acquire package management lock: $lock"
+    if [ ! -w "$lock" ]; then
+        warn "Can't acquire ro lock: $lock"
+        return 0
     fi
-    tail -F "$lock" &
-    _LOCKPID=$!
+    # TODO: this needs `|| die`, but why isn't it affected by `set -e`?
+    pid=$("$_APPLET_DIR/lockf" "$lock") || die
+    exit_command "unlock_package_management $pid"
 }
 
 revert() {
@@ -112,16 +113,14 @@ revert() {
 unlock_package_management() {
     local pid
 
-    test -n "$_LOCKPID" || return 0
-    pid=$_LOCKPID
-    unset _LOCKPID
-    # If the tail process was already terminated, exit
-    grep -qs ^tail "/proc/$pid/cmdline" || return 0
+    pid=$1
+    # If the lock process was already terminated, exit
+    grep -qsw lockf "/proc/$pid/cmdline" || return 0
     rw kill "$pid"
     # Package management unlocking happens right before `umount`,
     # so wait for the process kill / file unlock before continuing
     sleep 0.2
-    grep -qs ^tail "/proc/$pid/cmdline" || return 0
+    grep -qsw lockf "/proc/$pid/cmdline" || return 0
     # If it's not killed by now, it's hanged, so force-kill it
     rw kill -9 "$pid"
     sleep 0.2

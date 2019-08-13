@@ -51,7 +51,7 @@ ipxe_main() {
     done
     re mkdir -p "$TFTP_DIR/ltsp"
     exit_command "rm -f '$TFTP_DIR/ltsp/ltsp.ipxe.tmp'"
-    re install_template -b "ltsp.ipxe" "$TFTP_DIR/ltsp/ltsp.ipxe.tmp" "\
+    re install_template "ltsp.ipxe" "$TFTP_DIR/ltsp/ltsp.ipxe.tmp" "\
 s|^/srv/ltsp|$BASE_DIR|g
 s|^#.*item.*\bimages\b.*|$(textif "$items$r_items" "$items\n$r_items" "&")|
 s|^:images\$|$(textif "$items" "$gotos" "&")|
@@ -68,7 +68,7 @@ s|^:roots\$|$(textif "$r_items" "$r_gotos" "&")|
         for binary in memtest.0 memtest.efi snponly.efi undionly.kpxe; do
             if [ "$OVERWRITE" = "1" ] || [ ! -f "$TFTP_DIR/ltsp/$binary" ]; then
                 echo "Downloading $BINARIES_URL/$binary"
-                re wget -q "$BINARIES_URL/$binary" -O "$TFTP_DIR/ltsp/$binary" ||
+                re wget -q "$BINARIES_URL/$binary" -O "$TFTP_DIR/ltsp/$binary"
             else
                 echo "Skipping existing $TFTP_DIR/ltsp/$binary"
             fi

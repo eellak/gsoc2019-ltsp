@@ -148,7 +148,7 @@ To overwrite it, run: ltsp --overwrite $_APPLET ..."
             re mv "$dst" "$dst.old"
         fi
         re sed "$sedp" "$_APPLET_DIR/$sname$language$sext" > "$dst"
-        echo "Installed $_APPLET_DIR/$sname$language$sext in $dst"
+        echo "Installed $_APPLET_DIR/$sname$language$sext in ${dst#%.tmp}"
         return 0
     done
     die "Template file $src not found."

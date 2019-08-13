@@ -13,7 +13,6 @@ init_cmdline() {
     re mkdir -p /run/ltsp/client
     # OK, ready to run all the main functions
     re run_main_functions "$_SCRIPTS" "$@"
-    debug_shell "Ready to exec /sbin/init"
     re exec /sbin/init
 }
 
@@ -70,18 +69,12 @@ init_main() {
     # TODO: pwmerge won't work with LANG=C or unset; maybe ensure a default
     # LANG=C.UTF-8 if it's unset for all scripts
     export LANG=${LANG:-C.UTF-8}
-    re /usr/share/ltsp/client/login/pwmerge -lq /usr/share/ltsp/client/login/_.git/src /etc /etc
+    re /usr/share/ltsp/client/login/pwmerge -lq /etc/ltsp /etc /etc
     rw sed "s|\bserver\b|replaced-server|g" -i /etc/hosts
     rw printf "$SERVER\tserver\n" >> /etc/hosts
     # TODO: remove: disable autologin
     rw rm -f /etc/lightdm/lightdm.conf
     rw setupcon
-    # TODO: remove: create some test users to see how DMs handle them
-    blank=$(rw python3 -c 'import crypt; print(crypt.crypt(""))')
-    printf '1\n1\n' | adduser --gecos '' b; usermod -p "$blank" b
-    printf '1\n1\n' | adduser --gecos '' l; passwd -l l
-    printf '1\n1\n' | adduser --gecos '' np; passwd -d np
-    printf '1\n1\n' | adduser --gecos '' p
     if [ "$NFS_HOME" = "1" ]; then
         # mount.nfs means nfs-common installed
         # -o nolock bypasses the need for a portmap daemon
@@ -119,9 +112,9 @@ iface lo inet loopback
 
 auto $DEVICE
 iface $DEVICE inet manual
-" > "/etc/network/interfaces"
+" > /etc/network/interfaces
     # Never ifdown anything. Safer! :P
-    test -x /sbin/ifdown &&
+    test ! -x /sbin/ifdown ||
         rw ln -sf ../bin/true /sbin/ifdown
 }
 

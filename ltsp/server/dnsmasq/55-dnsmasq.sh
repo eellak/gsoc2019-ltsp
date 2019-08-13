@@ -54,7 +54,7 @@ dns_server() {
     # Jessie doesn't have systemd-resolve
     if is_command systemd-resolve; then
         dns_server=$(LANG=C.UTF-8 rw systemd-resolve --status |
-            sed -n '/DNS Servers:/,/DNS Domain:/s/.* \([0-9.]\{7,15\}\).*/\1/p' |
+            sed -n '/DNS Servers:/,/:/s/.* \([0-9.]\{7,15\}\).*/\1/p' |
             grep -v '^127.0.' |
             tr '\n' ',')
     fi
@@ -84,7 +84,8 @@ proxy_dhcp() {
             127.0.0.1|169.254.0.0|192.168.67.0|*[!0-9.]*)
                 continue
                 ;;
-            *)
+            *)  # Ignore single IP routes, like vbox NAT gateway
+                test "$cidr" != "${cidr#*/}" || continue
                 netmask=$(length_to_netmask "${cidr#*/}")
                 # echo in dash translates "\n", use printf to keep it
                 echo "${separator}dhcp-range=set:proxy,$subnet,proxy,$netmask"

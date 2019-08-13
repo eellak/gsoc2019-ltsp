@@ -40,4 +40,7 @@ initrd_main() {
     test -f "$_DST_DIR/etc/ltsp/ssh_known_hosts" ||
         rw sed "s/^/server /" /etc/ssh/ssh_host_*_key.pub > \
             "$_DST_DIR/etc/ltsp/ssh_known_hosts"
+    # Copy server passwd and group
+    re cp -a /etc/passwd "$_DST_DIR/etc/ltsp/"
+    re cp -a /etc/group "$_DST_DIR/etc/ltsp/"
 }
