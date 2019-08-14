@@ -50,7 +50,7 @@ ipxe_main() {
         r_gotos=":r_$img_name\nset img $img_name \&\& goto roots\n$r_gotos"
     done
     re mkdir -p "$TFTP_DIR/ltsp"
-    exit_command "rm -f '$TFTP_DIR/ltsp/ltsp.ipxe.tmp'"
+    exit_command "rw rm -f '$TFTP_DIR/ltsp/ltsp.ipxe.tmp'"
     re install_template "ltsp.ipxe" "$TFTP_DIR/ltsp/ltsp.ipxe.tmp" "\
 s|^/srv/ltsp|$BASE_DIR|g
 s|^#.*item.*\bimages\b.*|$(textif "$items$r_items" "$items\n$r_items" "&")|

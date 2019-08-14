@@ -25,7 +25,7 @@ TFTP_DIR=${TFTP_DIR:-/srv/tftp}
 HOME_DIR=${HOME_DIR:-/home}
 
 ltsp_cmdline() {
-    local show_help help_param args
+    local show_help help_param args cap_applet
 
     show_help=0
     help_param=
@@ -70,7 +70,9 @@ ltsp_cmdline() {
     re locate_applet_scripts "$_APPLET"
     # Remember, locate_applet_scripts has just updated $_SCRIPTS
     re source_scripts "$_SCRIPTS"
-    re run_directives "^PRE_${_APPLET}_"
+    cap_applet=$(echo "$_APPLET" | awk '{ print(toupper($0)) }' |
+        sed 's/[^[:alnum:]]/_/g')
+    re run_directives "^PRE_${cap_applet}_"
     re "$_APPLET_FUNCTION" "$@"
-    re run_directives "^POST_${_APPLET}_"
+    re run_directives "^POST_${cap_applet}_"
 }

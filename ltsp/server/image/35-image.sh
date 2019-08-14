@@ -85,7 +85,7 @@ lock_package_management() {
     fi
     # TODO: this needs `|| die`, but why isn't it affected by `set -e`?
     pid=$("$_APPLET_DIR/lockf" "$lock") || die
-    exit_command "unlock_package_management $pid"
+    exit_command "rw unlock_package_management $pid"
 }
 
 revert() {

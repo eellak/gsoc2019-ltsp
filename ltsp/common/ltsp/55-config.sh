@@ -10,7 +10,7 @@ echo_values() {
 
     for var in $(echo_vars "$1"); do
         eval "value=\$$var"
-        echo "$var: $value"
+        echo "$value"
     done
 }
 

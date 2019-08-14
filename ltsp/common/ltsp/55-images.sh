@@ -319,8 +319,8 @@ overlay() {
         grep -q overlay /proc/filesystems || die "Could not modprobe overlay"
     fi
     re mkdir -p "$dst_par/up" "$dst_par/work"
-    exit_command "rm -r '$dst_par/up' '$dst_par/work'"
+    exit_command "rw rm -r '$dst_par/up' '$dst_par/work'"
     warn "Running: mount -t overlay -o upperdir=$dst_par/up,lowerdir=$src,workdir=$dst_par/work overlay $dst"
     re mount -t overlay -o "upperdir=$dst_par/up,lowerdir=$src,workdir=$dst_par/work" overlay "$dst"
-    exit_command "umount '$dst'"
+    exit_command "rw umount '$dst'"
 }
