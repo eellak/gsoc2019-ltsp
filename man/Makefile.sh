@@ -27,7 +27,7 @@ $(sed "1,2d" "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
 **ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
 **ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
 **ltsp-nfs**(8), **ltsp-swap**(8)
@@ -43,7 +43,7 @@ $(sed "1,2d" "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
 **ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
 **ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
 **ltsp-nfs**(8), **ltsp-swap**(8)
@@ -57,7 +57,7 @@ $(cat "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp-chroot**(8), **ltsp-client.conf**(5), **ltsp-dnsmasq**(8),
+**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
 **ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
 **ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
 **ltsp-nfs**(8), **ltsp-swap**(8)

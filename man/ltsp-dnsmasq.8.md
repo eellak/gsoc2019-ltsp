@@ -35,7 +35,7 @@ isc-dhcp-server on the LTSP server.
 **-s**, **--dns-server=**_"space separated list"_
 : Set the DNS server DHCP option. Defaults to autodetection.
 Proxy DHCP clients don't receive DHCP options, so it's recommended to use the
-client.conf DNS_SERVER directive when autodetection isn't appropriate.
+ltsp.conf DNS_SERVER parameter when autodetection isn't appropriate.
 
 **-t**, **--tftp=**_0|1_
 : Enable or disable the TFTP service. Defaults to 1.

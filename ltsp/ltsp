@@ -204,12 +204,8 @@ locate_applet_scripts() {
     # https://www.freedesktop.org/software/systemd/man/systemd.unit.html
     # Drop-in files in /etc take precedence over those in /run
     # which in turn take precedence over those in /usr.
-    _SCRIPTS=$(
-        test -f "/etc/ltsp/$_APPLET.conf" && echo "/etc/ltsp/$_APPLET.conf"
-        run_parts_list "$_APPLET_DIR" \
-            "/run/ltsp/$sub_dir/$_APPLET" \
-            "/etc/ltsp/$sub_dir/$_APPLET"
-    )
+    _SCRIPTS=$(run_parts_list "$_APPLET_DIR" \
+        "/run/ltsp/$sub_dir/$_APPLET" "/etc/ltsp/$sub_dir/$_APPLET")
 }
 
 # Run a command. Exit if it failed.

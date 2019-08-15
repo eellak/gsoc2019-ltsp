@@ -84,7 +84,7 @@ The disadvantages are that the clients need to have the same architecture as
 the server (e.g. all x86_64), and that the server can't be a "full blown
 server" with LDAP and Apache and a lot of other services, without taking
 care to disable those services on the clients with the RM_SYSTEM_SERVICES
-directive of client.conf. Note that RM_SYSTEM_SERVICES already includes
+parameter of ltsp.conf. Note that RM_SYSTEM_SERVICES already includes
 Apache and MySQL and a few other popular services that we don't want in
 LTSP clients, so it's not a problem if you install Apache on the LTSP server.
 

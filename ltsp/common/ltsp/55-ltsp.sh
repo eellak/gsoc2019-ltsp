@@ -5,17 +5,16 @@
 # Handle the pre-applet part of the ltsp command line
 
 # Constant variables may be set in any of the following steps:
-# 1) user: environment, `VAR=value $_APPLET`
+# 1) user: environment, `VAR=value ltsp ...`
 # 2) distro: 11-ltsp-distro.sh for all applets
 # 3) upstream: 55-ltsp.sh for all applets
 # 4) user: /etc/ltsp/ltsp.conf for all applets
-# 5) user: /etc/ltsp/$_APPLET.conf for a specific applet
-# 6) distro: 11-$_APPLET-distro.sh for a specific applet
-# 7) upstream: 55-$_APPLET-distro.sh for a specific applet
+# 5) distro: 11-$_APPLET-distro.sh for a specific applet
+# 6) upstream: 55-$_APPLET-distro.sh for a specific applet
 # For proper ordering, upstream and distros should use `VAR=${VAR:-value}`.
 # We're still in the "sourcing" phase, so subsequent scripts may even use the
 # variables before the "execution" phase.
-# 8) user: cmdline `$_APPLET --VAR=value`, evaluated at the execution phase
+# 7) user: cmdline `ltsp ... --VAR=value`, evaluated at the execution phase
 # Btw, to see all constants: grep -rIwoh '$[A-Z][_A-Z0-9]*' | sort -u
 
 # Distributions should replace "1.0" below at build time using `sed`
@@ -61,8 +60,9 @@ ltsp_cmdline() {
     # "$@" is the applet parameters; don't use it for the ltsp main functions
     re run_main_functions "$_SCRIPTS"
     _APPLET="$1"; shift
-    # client.conf is evaluated on every `ltsp applet` call but only on clients
-    if [ -d /run/ltsp/client ] && [ -f /etc/ltsp/client.conf ]; then
+    # ltsp.conf is evaluated on every `ltsp applet` call; it needs network_vars
+    re network_vars
+    if [ -f /etc/ltsp/ltsp.conf ]; then
         re eval_ini
     fi
     # We could put the rest of the code below in an ltsp_main() function,
@@ -72,7 +72,7 @@ ltsp_cmdline() {
     re source_scripts "$_SCRIPTS"
     cap_applet=$(echo "$_APPLET" | awk '{ print(toupper($0)) }' |
         sed 's/[^[:alnum:]]/_/g')
-    re run_directives "^PRE_${cap_applet}_"
+    re run_parameters "^PRE_${cap_applet}_"
     re "$_APPLET_FUNCTION" "$@"
-    re run_directives "^POST_${cap_applet}_"
+    re run_parameters "^POST_${cap_applet}_"
 }

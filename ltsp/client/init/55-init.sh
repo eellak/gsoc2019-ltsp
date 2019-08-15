@@ -13,8 +13,8 @@ init_cmdline() {
     re mkdir -p /run/ltsp/client
     # OK, ready to run all the main functions
     re run_main_functions "$_SCRIPTS" "$@"
-    # Since we don't return, we need to run the POST directives
-    re run_directives "^INIT_POST_"
+    # Since we don't return, we need to run the POST parameters manually
+    re run_parameters "^POST_INIT_"
     re exec /sbin/init
 }
 

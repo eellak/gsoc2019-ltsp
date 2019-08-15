@@ -31,10 +31,9 @@ EOF
 eval_ini() {
     local config applet
 
-    config=${1:-/etc/ltsp/client.conf}
+    config=${1:-/etc/ltsp/ltsp.conf}
     applet=${2:-$_APPLET}
     eval "$(ini2sh "$config")" || die "Error while evaluating $config"
-    re network_vars
     re section_call unnamed default "$MAC_ADDRESS" "$IP_ADDRESS"
     # MAC/IP sections are allowed to set HOSTNAME
     re section_call "$HOSTNAME"
@@ -43,7 +42,7 @@ eval_ini() {
     fi
 }
 
-# Convert an .ini file, like client.conf, to a shell sourceable file.
+# Convert an .ini file, like ltsp.conf, to a shell sourceable file.
 # The basic ideas are:
 # [a1:b2:c3:d4:*:*] becomes a function: section_a1_b2_c3_d4____() {
 # LIKE=old_monitor becomes a call: section_old_monitor
@@ -68,7 +67,7 @@ BEGIN {
     }
     # The sections list, used later on in section_call()
     list=""
-    # Cope with directives above the [Default] section, which is a user error
+    # Cope with parameters above the [Default] section, which is a user error
     section_id=prefix "unnamed"
     print section_id "() {\n"\
         "# Prevent infinite recursion\n"\
@@ -223,7 +222,7 @@ EOF
 }
 
 # We care about the IP/MAC used to connect to the LTSP server, not all of them
-# To handle multiple MACs in client.conf, use LIKE=
+# To handle multiple MACs in ltsp.conf, use LIKE=
 network_vars() {
     test -n "$DEVICE" && test -n "$IP_ADDRESS" && test -n "$MAC_ADDRESS" &&
         return 0
@@ -241,14 +240,14 @@ EOF
     re test "MAC_ADDRESS=$MAC_ADDRESS" != "MAC_ADDRESS="
 }
 
-# Run directives like PRE_INIT_XORG="ln -sf ../ltsp/xorg.conf /etc/X11/xorg.conf"
-run_directives() {
-    local directives
+# Run parameters like PRE_INIT_XORG="ln -sf ../ltsp/xorg.conf /etc/X11/xorg.conf"
+run_parameters() {
+    local parameters
 
-    directives=$(echo_values "$1")
-    test -n "$directives" || return 0
-    debug "Running $1: $directives"
-    re eval "$directives"
+    parameters=$(echo_values "$1")
+    test -n "$parameters" || return 0
+    debug "Running $1: $parameters"
+    re eval "$parameters"
 }
 
 # Used by install_template

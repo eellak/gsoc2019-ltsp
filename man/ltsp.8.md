@@ -10,21 +10,16 @@ Run the specified LTSP _applet_ with _applet-options_. To get help with applets 
 ## APPLETS
 The following applets are currently defined:
 
- - **chroot**: chroot into an LTSP chroot directory or image, for maintenance
- - **client.conf**: generate a template /etc/ltsp/client.conf
  - **dnsmasq**: configure dnsmasq for LTSP
  - **image**: generate a squashfs image from an image source
  - **info**: gather support information about the LTSP installation
  - **initrd**: create the ltsp.img initrd add-on
  - **ipxe**: install iPXE binaries and configuration in TFTP
- - **isc-dhcp**: configure isc-dhcp-server for LTSP
  - **kernel**: copy the kernel and initrd from an image to TFTP
  - **nfs**: configure NFS exports for LTSP
- - **swap**: generate and export a swapfile via NBD
 
 LTSP clients also have some additional applets, like **initrd-bottom**,
-**init** and **login**, but they're not runnable by the user. See
-ltsp-client.conf(8) for more details.
+**init** and **login**, but they're not runnable by the user.
 
 ## OPTIONS
 LTSP directories can be configured by passing one or more of the following
