@@ -1,0 +1,6 @@
+ltsp (19.08-1) unstable; urgency=low
+
+  * Import the new LTSP codebase from https://github.com/eellak/gsoc2019-ltsp.
+    With a lot of thanks to ellak.gr, GSoC and the mentors!
+
+ -- Alkis Georgopoulos <alkisg@gmail.com>  Sun, 11 Aug 2019 12:34:56 +0300
