@@ -22,7 +22,7 @@ greeter-show-manual-login = true" > /etc/lightdm/lightdm.conf.d/ltsp.conf
 }
 
 configure_gdm() {
-    is_command gdm || return 0
+    is_command gdm3 || return 0
     # Disable autologin
     grep -qsw "^ *AutomaticLoginEnable *=.*rue" /etc/gdm3/daemon.conf &&
         rw sed "s|^ *AutomaticLoginEnable *=.*rue|# ltsp: &|" \

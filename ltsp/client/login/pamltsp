@@ -73,9 +73,14 @@ $sp_entry
 EOF
     test "$_OLDIFS" = "not set" && unset IFS || IFS="$_OLDIFS"
     test "$pw_name" = "$sp_namp" || die "Invalid passwd/shadow for $PAM_USER"
-    test "${sp_pwdp}" != "${sp_pwdp#pamltsp}" ||
-        # TODO: delete this message in production and just exit 1
-        die "User $PAM_USER can't auth via pamltsp"
+    if [ "${sp_pwdp}" = "${sp_pwdp#pamltsp}" ]; then
+        if [ "$PAM_TYPE" = "open_session" ]; then
+            exit 0
+        else
+            # TODO: delete this message in production and just exit 1
+            die "User $PAM_USER can't auth via pamltsp"
+        fi
+    fi
     # First call since boot
     if [ ! -d /run/ltsp/pam ]; then
         mkdir -p /run/ltsp/pam
