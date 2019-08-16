@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Handle the pre-applet part of the ltsp command line
+# @LTSP.CONF: BASE_DIR TFTP_DIR HOME_DIR PRE_APPLET_x POST_APPLET_x
 
 # Constant variables may be set in any of the following steps:
 # 1) user: environment, `VAR=value ltsp ...`

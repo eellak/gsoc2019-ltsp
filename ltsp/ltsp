@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Main entry point for all ltsp applets; also contains the essential functions
+# @LTSP.CONF: LTSP_DEBUG DEBUG_SHELL DEBUG_LOG
 
 # Execution sequence:
 # This main() > source common/ltsp/* (and config/vendor overrides)

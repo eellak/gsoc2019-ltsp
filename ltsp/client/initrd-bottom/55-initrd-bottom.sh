@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Make root writable using a tmpfs overlay and install ltsp-init
+# @LTSP.CONF: IMAGE OVERLAY
 
 initrd_bottom_cmdline() {
     if [ -f /scripts/functions ]; then
@@ -56,7 +57,7 @@ install_ltsp() {
     re ln -sf ../share/ltsp/ltsp "$rootmnt/usr/sbin/ltsp"
     # To avoid specifying an init=, we override the real init.
     # We can't mount --bind as it's in use by libraries and can't be unmounted.
-    re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.real"
+    re mv "$rootmnt/sbin/init" "$rootmnt/sbin/init.ltsp"
     re ln -s ../../usr/share/ltsp/client/init/init "$rootmnt/sbin/init"
     # Jessie needs a 3.18+ kernel and this initramfs-tools hack:
     if grep -qs jessie /etc/os-release; then

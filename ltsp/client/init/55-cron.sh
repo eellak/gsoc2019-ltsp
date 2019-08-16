@@ -2,7 +2,8 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Handle CRON_x parameters and disable unecessary cron jobs
+# Handle CRONTAB_x parameters and disable unecessary cron jobs
+# @LTSP.CONF: CRONTAB_x
 
 cron_main() {
     local var

@@ -2,7 +2,14 @@
 # Copyright 2019 the LTSP team, see AUTHORS
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# @LTSP.CONF: PWMERGE_SUR PWMERGE_SGR PWMERGE_DUR PWMERGE_DGR
+
 pam_main() {
-    re /usr/share/ltsp/client/login/pwmerge -lq /etc/ltsp /etc /etc
-    re /usr/share/ltsp/client/login/pamltsp install
+    re "$_LTSP_DIR/client/login/pwmerge" \
+        ${PWMERGE_SUR:+"--sur=$PWMERGE_SUR"} \
+        ${PWMERGE_SGR:+"--sur=$PWMERGE_SGR"} \
+        ${PWMERGE_DUR:+"--sur=$PWMERGE_DUR"} \
+        ${PWMERGE_DGR:+"--sur=$PWMERGE_DGR"} \
+        -lq /etc/ltsp /etc /etc
+    re "$_LTSP_DIR/client/login/pamltsp" install
 }
