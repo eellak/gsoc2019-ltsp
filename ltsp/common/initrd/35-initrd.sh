@@ -43,4 +43,8 @@ initrd_main() {
     # Copy server passwd and group
     re cp -a /etc/passwd "$_DST_DIR/etc/ltsp/"
     re cp -a /etc/group "$_DST_DIR/etc/ltsp/"
+    # Copy epoptes keys; but provide for a future override
+    if [ "$IGNORE_EPOPTES" != "1" ] && [ -f /etc/epoptes/server.crt ]; then
+        re cp -a /etc/epoptes/server.crt "$_DST_DIR/etc/ltsp/epoptes.crt"
+    fi
 }
