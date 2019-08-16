@@ -16,6 +16,7 @@ networking_main() {
     re config_dns
     re config_ifupdown
     re config_network_manager
+    re config_validlft
     re store_networking
 }
 
@@ -140,6 +141,30 @@ config_network_manager() {
 unmanaged-devices=interface-name:$DEVICE
 " > /etc/NetworkManager/conf.d/ltsp.conf
     return 0
+}
+
+# Dracut sets the IP using the valid_lft parameter. From `man ip-address`:
+# > the valid lifetime of this address; see section 5.5.4 of RFC 4862.
+# > When it expires, the address is removed by the kernel.
+# We don't want the address to be removed by the kernel, so we change it here
+# to "forever".
+config_validlft() {
+    local ip mask brd
+
+    # On the other hand some setups exist, e.g. Fedora with Network Manager,
+    # that renew the lease only if valid_lft != "forever".
+    # In such cases, just return:
+    grep -qs "^BOOTPROTO=dhcp" "/etc/sysconfig/network-scripts/ifcfg-$DEVICE" &&
+        return 0
+
+    # Example output:
+    # 2: enp2s0    inet 10.161.254.11/24 brd 10.161.254.255 scope global enp2s0\       valid_lft 25147sec preferred_lft 25147sec
+    # We don't match it and we don't do anything if valid_lft = "forever".
+    re ip -4 -oneline addr show dev "$DEVICE" |
+        sed -n 's/.* \([0-9.]*\)\/\([0-9]*\) brd \([0-9.]*\) .* valid_lft [0-9][^ ]* .*/\1 \2 \3/p' |
+        while read -r ip mask brd; do
+            re ip -4 addr change "$ip/$mask" broadcast "$brd" dev "$DEVICE"
+        done
 }
 
 # To detect the server, we don't want to use the following:

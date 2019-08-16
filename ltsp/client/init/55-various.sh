@@ -22,6 +22,7 @@ various_main() {
     config_epoptes
     config_fstab
     config_machine_id
+    config_motd
 }
 
 config_epoptes() {
@@ -54,4 +55,12 @@ config_machine_id() {
     if [ -f /var/lib/dbus/machine-id ]; then
         re ln -sf ../../../etc/machine-id /var/lib/dbus/machine-id
     fi
+}
+
+# /etc/init/mounted-run.conf calls `run-parts /etc/update-motd.d`, and that
+# takes more than a (completely useless) second. But we don't want to remove
+# the whole mounted-run service as it prepares /run too. So remove most scripts
+# there but leave the header and footer.
+config_motd() {
+    re rm -f /etc/update-motd.d/[1-9][0-8]*
 }
