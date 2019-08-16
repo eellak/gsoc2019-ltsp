@@ -15,7 +15,7 @@ account, not as root; this will allow you to edit ltsp.conf with a
 visual editor (e.g. gedit) without requiring the use of sudo.
 
 ```shell
-( umask 0077; echo [Default] > /tmp/ltsp.conf )
+( umask 0077; echo [default] > /tmp/ltsp.conf )
 sudo mv /tmp/ltsp.conf /etc/ltsp/
 xdg-open /etc/ltsp/ltsp.conf
 ```
@@ -24,19 +24,26 @@ xdg-open /etc/ltsp/ltsp.conf
 An example is worth a thousand words:
 
 ```shell
-# The Default section applies to all clients
-[Default]
-FSTAB_NFS="192.168.67.1:/home /home nfs 0 0"
+# /bin/sh -n
+# Example /etc/ltsp/ltsp.conf configuration file
+# Documentation: man:ltsp.conf(5)
 
+# The default section applies to all ltsp clients
+[default]
+# Use NFS3 home. Faster but insecure!
+FSTAB_NFS="server:/home /home nfs 0 0"
+
+# The ltsp client at the library
 [61:6c:6b:69:73:67]
-HOSTNAME=pc01  # the client near the door
+HOSTNAME=pc01
 LIKE=CRT_MONITOR
 
+# Include this section to clients with CRT screens
 [CRT_MONITOR]
 X_MODE_0="1024x768x32@85"
 ```
 
-The configuration file is separated into sections. The [Default] section
+The configuration file is separated into sections. The [default] section
 applies to all clients, including the server (e.g. for setting BASE_DIR).
 Sections with a lowercase MAC address, an IP or a hostname can be used
 to apply parameters to selected clients. Globs are also allowed, for
@@ -93,17 +100,40 @@ name are sorted and their values are executed before the main function of
 that applet.
 
 ## EXAMPLES
-Since ltsp.conf is transformed into a shell script, it's possible to do
-all kinds of fancy things, even to directly include code. But it's best
-to keep it simple.
+A long example was give above in the SYNTAX section. Note that the
+"# /bin/sh -n" fake shebang was used to easily enable shell highlighting
+in gedit/pluma.
 
-To set the client resolution, create an appropriate xorg.conf in e.g.
-`/etc/ltsp/xorg-crt-monitor.conf`, and put the following in ltsp.conf:
+If some clients need an custom xorg.conf file, create it in e.g.
+`/etc/ltsp/xorg-nvidia.conf`, and put the following in ltsp.conf
+to dynamically symlink it for those clients on boot:
 
 ```shell
 [pc01]
-LIKE=CRT_MONITOR
+LIKE=NVIDIA_CLIENTS
 
-[CRT_MONITOR]
-POST_INIT_LN_XORG="ln -rsf /etc/ltsp/xorg-crt-monitor.conf /etc/X11/xorg.conf"
+[NVIDIA_CLIENTS]
+POST_INIT_LN_XORG="ln -sf ../ltsp/xorg-nvidia.conf /etc/X11/xorg.conf"
+```
+
+Since ltsp.conf is transformed into a shell script and sections into
+functions, it's possible to do all kinds of fancy things, even to directly
+include code. But it's usually best to keep it simple and put code in
+separate scripts.
+
+```shell
+[default]
+# Set the root password to "qwer1234" for all clients.
+# The password hash contains ' and $, making it hard to escape it,
+# so use a "HEREDOC" instead.
+{ POST_INIT_SET_ROOT_HASH=$(cat); } <<"EOF"
+sed 's|^root:[^:]*:|root:$6$p2LdWE6j$PDd1TUzGvvIkj9SE8wbw1gA/MD66tHHlStqi1.qyv860oK47UnKcafSKqGp7cbgZUPlgyPv6giCVyCSCdJt1b0:|' -i /etc/shadow
+EOF
+
+[initrd_bottom/default]
+# Putting commands under [applet/default] sections means that they will
+# only be run in that specific boot phase, not by all ltsp client applets.
+# The following commands work around LP: #345374 bug for sis clients.
+test -d /sys/module/sis190 || return 0
+ip link set dev "$DEVICE" mtu 1492
 ```

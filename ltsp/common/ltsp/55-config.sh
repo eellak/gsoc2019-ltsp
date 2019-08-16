@@ -4,27 +4,34 @@
 
 # Functions related to LTSP configuration and environment variables
 
-# Output the values of all the variables that match the expression
+# Output the values of all the variables that match the expression.
+# A second "invert-match" expression is also supported.
 echo_values() {
-    local var value
+    local ex1 ex2 var value
 
-    for var in $(echo_vars "$1"); do
+    ex1=$1
+    # ex2 defaults to an unmatchable expression
+    ex2=${2:-.^}
+    for var in $(echo_vars "$ex1" "$ex2"); do
         eval "value=\$$var"
         echo "$value"
     done
 }
 
-# Output the names of all the variables that match the expression
+# Output the names of all the variables that match the expression.
+# A second "invert-match" expression is also supported.
 echo_vars() {
-    local ex var value
+    local ex1 ex2 var value
 
-    ex=$1
+    ex1=$1
+    # ex2 defaults to an unmatchable expression
+    ex2=${2:-.^}
     while IFS="=" read -r var value; do
         eval "value=\$$var"
         test -n "$value" || continue
         echo "$var"
     done <<EOF
-$(set | grep "$ex")
+$(set | grep -E "$ex1" | grep -vE "$ex2")
 EOF
 }
 
@@ -241,12 +248,20 @@ EOF
 }
 
 # Run parameters like PRE_INIT_XORG="ln -sf ../ltsp/xorg.conf /etc/X11/xorg.conf"
+# $1 is either PRE or POST.
 run_parameters() {
-    local parameters
+    local cap_applet ex1 ex2 parameters
 
-    parameters=$(echo_values "$1")
+    cap_applet=$(echo "$_APPLET" | awk '{ print(toupper($0)) }' |
+        sed 's/[^[:alnum:]]/_/g')
+    ex1="^${1}_${cap_applet}_"
+    if [ "$cap_applet" = "INITRD" ]; then
+        ex2="${ex1}BOTTOM_"
+    else
+        ex2=.^
+    fi
+    parameters=$(echo_values "$ex1" "$ex2")
     test -n "$parameters" || return 0
-    debug "Running $1: $parameters"
     re eval "$parameters"
 }
 

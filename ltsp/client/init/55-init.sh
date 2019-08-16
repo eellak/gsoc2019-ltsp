@@ -14,7 +14,7 @@ init_cmdline() {
     # OK, ready to run all the main functions
     re run_main_functions "$_SCRIPTS" "$@"
     # Since we don't return, we need to run the POST parameters manually
-    re run_parameters "^POST_INIT_"
+    re run_parameters "POST"
     re exec /sbin/init
 }
 

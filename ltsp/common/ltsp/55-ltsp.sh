@@ -71,9 +71,7 @@ ltsp_cmdline() {
     re locate_applet_scripts "$_APPLET"
     # Remember, locate_applet_scripts has just updated $_SCRIPTS
     re source_scripts "$_SCRIPTS"
-    cap_applet=$(echo "$_APPLET" | awk '{ print(toupper($0)) }' |
-        sed 's/[^[:alnum:]]/_/g')
-    re run_parameters "^PRE_${cap_applet}_"
+    re run_parameters "PRE"
     re "$_APPLET_FUNCTION" "$@"
-    re run_parameters "^POST_${cap_applet}_"
+    re run_parameters "POST"
 }
