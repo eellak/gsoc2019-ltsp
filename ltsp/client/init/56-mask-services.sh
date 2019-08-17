@@ -4,12 +4,12 @@
 
 # Remove some services that don't make sense in live sessions
 # Depends on 55-various.sh to have put NFS entries in /etc/fstab
-# @LTSP.CONF: RM_SESSION_SERVICES KEEP_SESSION_SERVICES
-# @LTSP.CONF: RM_SYSTEM_SERVICES KEEP_SYSTEM_SERVICES
+# @LTSP.CONF: MASK_SESSION_SERVICES KEEP_SESSION_SERVICES
+# @LTSP.CONF: MASK_SYSTEM_SERVICES KEEP_SYSTEM_SERVICES
 
-rm_services_main() {
-    rm_session_services
-    rm_system_services
+mask_services_main() {
+    mask_session_services
+    mask_system_services
 }
 
 exclude_kept_services() {
@@ -29,29 +29,29 @@ exclude_kept_services() {
     done
 }
 
-rm_session_services() {
-    local rm_services service
+mask_session_services() {
+    local mask_services service
 
-    rm_services="
+    mask_services="
 at-spi-dbus-bus         # AT-SPI D-Bus Bus
 gnome-software-service  # GNOME Software
 update-notifier         # Check for available updates automatically
 "
-    rm_services="$(exclude_kept_services "$KEEP_SESSION_SERVICES" \
-"$rm_services
-$RM_SESSION_SERVICES")"
+    mask_services="$(exclude_kept_services "$KEEP_SESSION_SERVICES" \
+"$mask_services
+$MASK_SESSION_SERVICES")"
 
     # TODO: also blacklist and handle systemd user units
-    for service in $rm_services; do
+    for service in $mask_services; do
         rm -f "/etc/xdg/autostart/$service.desktop" \
             "/usr/share/upstart/xdg/autostart/$service.desktop"
     done
 }
 
-rm_system_services() {
-    local rm_services service existing_services
+mask_system_services() {
+    local mask_services service existing_services
 
-    rm_services="
+    mask_services="
 # From Ubuntu 18.04 /lib/systemd/system:
 alsa-restore               # Save/Restore Sound Card State
 alsa-state                 # Manage Sound Card State (restore and store)
@@ -83,7 +83,7 @@ teamviewerd                # TeamViewer remote control daemon
 
 # We don't need NFS-related services if we're not using nfs
 if ! grep -q nfs /etc/fstab; then
-    rm_services="$rm_services
+    mask_services="$mask_services
 auth-rpcgss-module         # Kernel Module supporting RPCSEC_GSS
 nfs-blkmap                 # pNFS block layout mapping daemon
 nfs-common                 # nfs-config.service  # Preprocess NFS configuration
@@ -101,13 +101,13 @@ rpc-svcgssd                # RPC security service for NFS server
 "
     fi
 
-    rm_services="$(exclude_kept_services "$KEEP_SYSTEM_SERVICES" \
-"$rm_services
-$RM_SYSTEM_SERVICES")"
+    mask_services="$(exclude_kept_services "$KEEP_SYSTEM_SERVICES" \
+"$mask_services
+$MASK_SYSTEM_SERVICES")"
 
     # Minimize `systemctl disable` errors to avoid alarming the users
     existing_services=""
-    for service in $rm_services; do
+    for service in $mask_services; do
         if [ -f "/lib/systemd/system/$service" ] ||
            [ -f "/lib/systemd/system/$service.service" ] ||
            [ -f "/etc/systemd/system/$service" ] ||

@@ -44,7 +44,7 @@ resolv_conf() {
         "$_COW_DIR/etc/resolv.conf"
 }
 
-# Replace the ssh server keys; sshd is masked by RM_SYSTEM_SERVICES, and
+# Replace the ssh server keys; sshd is masked by MASK_SYSTEM_SERVICES, and
 # the sysadmin may override them with custom keys in /etc/ltsp/initrd/etc/ssh
 ssh_host_keys() {
     local t
