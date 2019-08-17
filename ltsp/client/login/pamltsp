@@ -115,6 +115,12 @@ EOF
         -o IdentitiesOnly=yes -o IdentityFile=/nonexistent \
         -o NumberOfPasswordPrompts=1
     unset success
+    # Indicate that an authentication attempt is in progress
+    # See https://github.com/libfuse/sshfs/issues/183
+    trap "rm -f '/run/ltsp/pam/$PAM_USER/pid'" HUP INT QUIT SEGV PIPE TERM EXIT
+    echo "$$" > "/run/ltsp/pam/$PAM_USER/pid"
+    # `mountpoint` blocks until the sshfs password in entered.
+    # That may be a good thing, to avoid race conditions.
     if [ "$SSHFS" = "0" ] || mountpoint -q /home || mountpoint -q "$pw_dir"
     then
         if [ "$PAM_TYPE" = "open_session" ]; then
@@ -126,13 +132,29 @@ EOF
         # The ssh call logic is documented in ssh-askpass
         export DISPLAY=
         export SSH_ASKPASS="${_SELF%/*}/ssh-askpass"
-        ssh -q "$@" "$pw_name@$SERVER" /bin/true && success=1
+        if ssh -q "$@" "$pw_name@$SERVER" exit 0; then
+            success=1
+            if [ ! -e "$pw_dir" ] && [ "$MKHOMEDIR" != "0" ]; then
+                # Emulate pam_mkhomedir
+                mkdir -p -m 0755 "$pw_dir"
+                cp -a /etc/skel/. "$pw_dir"
+                chown -R "$pw_uid:$pw_gid" "$pw_dir"
+            fi
+        fi
     else
         test "$_UID" = 0 || die "SSHFS needed without root?!"
         # $pw_dir must not be in use to be mounted; cd elsewhere
         cd / || true
+        # If a previous sshfs was killed instead of properly unmounted,
+        # `mountpoint` returns 1 "Transport endpoint is not connected",
+        # yet the mount point is there in /proc/mounts, and a new sshfs fails.
+        # Run an extra fusermount for this case.
+        # To reproduce, login as admin, and run: systemctl stop gdm3
+        # It needs a few seconds to kill all the processes.
+        # Logins will fail for those seconds, and work properly afterwards.
+        grep -qs "$pw_dir fuse.sshfs" /proc/mounts && fusermount -u "$pw_dir"
         # Create an empty home dir if it's not there; nope, no skel for SSHFS
-        if [ ! -d "$pw_dir" ]; then
+        if [ ! -d "$pw_dir" ] && [ "$MKHOMEDIR" != "0" ]; then
             mkdir -p -m 0755 "$pw_dir"
             chown "$pw_uid:$pw_gid" "$pw_dir"
         fi
@@ -153,7 +175,6 @@ EOF
     if [ "$success" = "1" ]; then
         return 0
     else
-        # TODO: don't reveal that the username doesn't exist; use one of:
         # su: gettext -d Linux-PAM "Authentication failure"
         # login: gettext -d shadow 'Login incorrect' (this works in fedora30 too)
         msg=$(gettext -d shadow "Login incorrect")
@@ -169,7 +190,7 @@ pam_log() {
         id
         env
         ps faux
-        cat /proc/mounts
+        grep home /proc/self/mountinfo
     } >"/tmp/pam_$PAM_TYPE.$$"
 }
 
@@ -210,17 +231,40 @@ EOF
 
 # This runs with no file descriptors open, to be properly backgrounded
 unmount_sshfs_stage2() {
+    local pw_name pw_dir i cmdline1 cmdline2
+
+    pw_name=$1
+    pw_dir=$2
     # This isn't called from pam; just emulating it for pam_log
     PAM_TYPE=unmount
     pam_log
-    # Give 5 seconds to systemd for process killing and cleanup
-    sleep 5
-    # If there are still user processes running, don't unmount it
-    if [ "$(pgrep -cu "$1")" -gt 0 ]; then
-        return 0
-    else
-        fusermount -u "$2"
-    fi
+    read -r cmdline1 <"/proc/$$/cmdline"
+    # Kill all other unmount_sshfs_stage2 of the same user; we're taking over!
+    for i in $(pidof -x "$_SELF"); do
+        test "$i" != "$$" || continue
+        read -r cmdline2 <"/proc/$i/cmdline"
+        test "$cmdline1" = "$cmdline2" || continue
+        kill "$i"
+    done
+    i=0
+    # Allow up to 10 seconds for systemd process killing and cleanup.
+    # Check every second if it finished.
+    while [ "$i" -lt 10 ]; do
+        sleep 1
+        # If it was... manually unmounted?
+        grep -qs "$pw_dir fuse.sshfs" /proc/mounts || return 0
+        # If a login for this same user is being attempted, postpone
+        if [ -e "/run/ltsp/pam/$PAM_USER/pid" ]; then
+            continue
+        else
+            i=$((i+1))
+        fi
+        # If no user processes are running, unmount it
+        if [ "$(pgrep -cu "$pw_name")" = "0" ]; then
+            fusermount -u "$pw_dir"
+            return 0
+        fi
+    done
 }
 
 main() {
@@ -229,6 +273,7 @@ main() {
     _OLDIFS="${IFS-not set}"
     _SELF=$(readlink -f "$0")
     _UID=$(id -u)
+    umask 0022
     # TODO: read these from a configuration file
     # SSHFS=1  # The default
     SERVER=server
