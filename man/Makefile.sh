@@ -7,6 +7,9 @@
 # put the output in ./man/man[0-9] subdirectories, to make packaging easier,
 # and to be able to test with: `MANPATH=man man ltsp kernel`
 
+# To get a list of all lts.conf parameters, run:
+# echo $(grep -r LTSP.CONF | sed 's/.*LTSP.CONF://' | tr ' ' '\n' | sort -u)
+
 VERSION=$(. ../ltsp/common/ltsp/55-ltsp.sh && echo "$_VERSION")
 date=$(date "+%Y-%m-%d")
 rm -rf ../man/man
@@ -27,10 +30,9 @@ $(sed "1,2d" "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
-**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
-**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
-**ltsp-nfs**(8), **ltsp-swap**(8)
+**ltsp**(8), **ltsp.conf**(5), **ltsp-dnsmasq**(8), **ltsp-image**(8),
+**ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8), **ltsp-kernel**(8),
+**ltsp-nfs**(8)
 EOF
         test -d ../../ltsp.github.io/docs/ || continue
         mkdir -p "../../ltsp.github.io/docs/$applet"
@@ -43,10 +45,9 @@ $(sed "1,2d" "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
-**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
-**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
-**ltsp-nfs**(8), **ltsp-swap**(8)
+**ltsp**(8), **ltsp.conf**(5), **ltsp-dnsmasq**(8), **ltsp-image**(8),
+**ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8), **ltsp-kernel**(8),
+**ltsp-nfs**(8)
 EOF
     else
         go-md2man > "man/man$section/$applet.$section" <<EOF
@@ -57,10 +58,9 @@ $(cat "$mp")
 Copyright 2019 the LTSP team, see AUTHORS
 
 ## SEE ALSO
-**ltsp**(8), **ltsp.conf**(5), **ltsp-chroot**(8), **ltsp-dnsmasq**(8),
-**ltsp-image**(8), **ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8),
-**ltsp-isc-dhcp**(8), **ltsp-kernel**(8), **ltsp-nbd**(8),
-**ltsp-nfs**(8), **ltsp-swap**(8)
+**ltsp**(8), **ltsp.conf**(5), **ltsp-dnsmasq**(8), **ltsp-image**(8),
+**ltsp-info**(8), **ltsp-initrd**(8), **ltsp-ipxe**(8), **ltsp-kernel**(8),
+**ltsp-nfs**(8)
 EOF
         # TODO: work around https://github.com/cpuguy83/go-md2man/issues/26
         sed 's/\\~/~/g' -i "man/man$section/$applet.$section"
