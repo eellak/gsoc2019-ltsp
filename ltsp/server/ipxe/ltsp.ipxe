@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Configure iPXE for LTSP
-# Documentation=man:ltsp-ipxe(8) https://ltsp.github.io/docs/ltsp-ipxe
+# Documentation=man:ltsp-ipxe(8)
 
 # Set the default image (img) based on arch, or to root-path if it's not empty
 cpuid --ext 29 && set img x86_64 || set img x86_32

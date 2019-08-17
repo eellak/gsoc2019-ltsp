@@ -22,7 +22,7 @@ kernel_cmdline() {
 }
 
 kernel_main() {
-    local tmp img_src img_name
+    local tmp img_src img_name runipxe
 
     if [ "$#" -eq 0 ]; then
         img_src=$(list_img_names)
@@ -32,6 +32,7 @@ kernel_main() {
 Please export ALL_IMAGES=1 if you want to allow this"
         fi
     fi
+    runipxe=0
     for img_src in "$@"; do
         img_path=$(add_path_to_src "${img_src%%,*}")
         img_name=$(img_path_to_name "$img_path")
@@ -48,15 +49,20 @@ Please export ALL_IMAGES=1 if you want to allow this"
 $(search_kernel "$tmp" | head -n 1)
 EOF
         if [ -f "$vmlinuz" ] && [ -f "$initrd" ]; then
-            re install -v -m 644 "$vmlinuz" "$TFTP_DIR/ltsp/$img_name/vmlinuz"
-            re install -v -m 644 "$initrd" "$TFTP_DIR/ltsp/$img_name/initrd.img"
+            test -f "$TFTP_DIR/ltsp/$img_name/vmlinuz" || runipxe=1
+            re install -pm 644 "$vmlinuz" "$TFTP_DIR/ltsp/$img_name/vmlinuz"
+            re install -pm 644 "$initrd" "$TFTP_DIR/ltsp/$img_name/initrd.img"
+            re ls -l "$TFTP_DIR/ltsp/$img_name/vmlinuz" \
+                "$TFTP_DIR/ltsp/$img_name/initrd.img"
         else
             warn "Could not locate vmlinuz and initrd.img in $img_src"
         fi
-        # TODO: echo a new kernel dir was created, remember to run: ltsp ipxe
         # Unmount everything and continue with the next image
         rw at_exit -EXIT
     done
+    if [ "$runipxe" = "1" ]; then
+        echo "To update the iPXE menu, run: ltsp ipxe"
+    fi
 }
 
 # Search for the kernel and initrd inside $dir
@@ -75,7 +81,7 @@ search_kernel() {
             initrd=$(printf "%s" "$vmlinuz" | sed "$ireg")
             if [ "$vmlinuz" = "$initrd" ]; then
                 debug "\tRegex returned the same file name, ignoring:\n"
-                debug "%s, %s, %s\n" "$vmlinuz" "$initrd" "$ireg"
+                debug "$vmlinuz" "$initrd" "$ireg"
                 continue
             fi
             if [ -f "$initrd" ]; then
