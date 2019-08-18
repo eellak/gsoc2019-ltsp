@@ -21,7 +21,12 @@ info_cmdline() {
 }
 
 info_main() {
-    printf "CHROOTS:\n"
+    printf "LTSP version: %s\n" "$_VERSION"
+    printf "\nSERVER XSESSIONS: "
+    rw ls /usr/share/xsessions
+    printf "\nSERVER OS: "
+    rw grep PRETTY_NAME /etc/os-release
+    printf "\nCHROOTS:\n"
     list_img_names -c
     printf "\nVMs:\n"
     list_img_names -v
