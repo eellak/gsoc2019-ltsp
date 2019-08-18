@@ -24,7 +24,7 @@ To specify a different directory, set $TFTP_DIR in /etc/ltsp/ltsp.conf.
 To export only some user homes over NFS3 (insecure) while the rest still
 use SSHFS, use symlinks as described below. Note that the NFS server doesn't
 follow symlinks outside of an export. Start by putting this line in
-/etc/ltsp/ltsp.conf under [Default]:
+/etc/ltsp/ltsp.conf under the [clients] section:
 
 ```shell
 FSTAB_NFS="server:/home/nfs /home nfs 0 0"

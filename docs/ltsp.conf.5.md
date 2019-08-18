@@ -4,54 +4,43 @@
 ## SYNOPSIS
 The LTSP client configuration file is placed at `/etc/ltsp/ltsp.conf`
 and it losely follows the .ini format. It is able to control various
-settings of the LTSP server and clients. After every ltsp.conf modification,
+settings of the LTSP server and clients. After each ltsp.conf modification,
 the `ltsp initrd` command needs to be run so that it's included in the
 additional ltsp.img initrd that is sent when the clients boot.
 
 ## CREATION
-Non-experienced sysadmins may use the following commands to create an
-ltsp.conf file; except for the sudo command, run the rest from your own
-account, not as root; this will allow you to edit ltsp.conf with a
-visual editor (e.g. gedit) without requiring the use of sudo.
+To create an initial ltsp.conf, run the following command:
 
 ```shell
-( umask 0077; echo [default] > /tmp/ltsp.conf )
-sudo mv /tmp/ltsp.conf /etc/ltsp/
-xdg-open /etc/ltsp/ltsp.conf
+install -m 0600 /usr/share/ltsp/common/ltsp/ltsp.conf /etc/ltsp/ltsp.conf
+```
+
+Optionally, you may also change its owner from "root" to yourself, so that
+you can edit that file with a visual editor (e.g. gedit) without running sudo.
+Of course, replace _administrator_ below with your username:
+
+```shell
+chown administrator:administrator /etc/ltsp/ltsp.conf
 ```
 
 ## SYNTAX
-An example is worth a thousand words:
+Open and view the /etc/ltsp/ltsp.conf file that you just created, so that it's
+easier to understand its syntax.
 
-```shell
-# /bin/sh -n
-# Example /etc/ltsp/ltsp.conf configuration file
-# Documentation: man:ltsp.conf(5)
+The configuration file is separated into sections:
 
-# The default section applies to all ltsp clients
-[default]
-# Use NFS3 home. Faster but insecure!
-FSTAB_NFS="server:/home /home nfs 0 0"
-
-# The ltsp client at the library
-[61:6c:6b:69:73:67]
-HOSTNAME=pc01
-LIKE=CRT_MONITOR
-
-# Include this section to clients with CRT screens
-[CRT_MONITOR]
-X_MODE_0="1024x768x32@85"
-```
-
-The configuration file is separated into sections. The [default] section
-applies to all clients, including the server (e.g. for setting BASE_DIR).
-Sections with a lowercase MAC address, an IP or a hostname can be used
-to apply parameters to selected clients. Globs are also allowed, for
-example [192.168.*].
-
-It's also possible to group parameters into named sections like [CRT_MONITOR]
-in the example, and reference them from other sections with the LIKE=
-parameter.
+ * The special [server] section is evaluated only by the ltsp server.
+ * The special [common] section is evaluated by both the server and ltsp clients.
+ * In the special [clients] section, parameters for all clients can be defined.
+   Most ltsp.conf parameters should be placed here.
+ * MAC address, IP address, or hostname sections can be used to apply settings
+   to specific clients. Those support globs, for example [192.168.67.*].
+ * It's also possible to group parameters into named sections like
+   [crt_monitor] in the example, and reference them from other sections with
+   the INCLUDE= parameter.
+ * Advanced users may also use [applet/host] sections, for example
+   [initrd-bottom/library*] would be evaluated by the `ltsp initrd-bottom`
+   applet only for clients that have a hostname that starts with "library".
 
 The ltsp.conf configuration file is internally transformed into a shell
 script, so all the shell syntax rules apply, except for the sections headers
@@ -61,12 +50,7 @@ This means that you must not use spaces around the "=" sign,
 and that you may write comments using the "#" character.
 
 The `ltsp initrd` command does a quick syntax check by running
-
-```shell
-sh -n /etc/ltsp/ltsp.conf
-```
-
-and aborts if it detects syntax errors.
+`sh -n /etc/ltsp/ltsp.conf` and aborts if it detects syntax errors.
 
 ## PARAMETERS
 The following parameters are currently defined; an example is given in
@@ -100,6 +84,9 @@ are written to /etc/fstab at the client init phase.
 **HOSTS_x=**_"192.168.67.10 nfs-server"_
 : All parameters that start with HOSTS_ are sorted and then their values
 are written to /etc/hosts at the client init phase.
+
+**INCLUDE=**_"other-section"
+: Include another section in this section.
 
 **KEEP_SESSION_SERVICES=**_"at-spi-dbus-bus"_
 : Whitelist some session (user) services so that they're not deleted, even if
@@ -149,19 +136,15 @@ by DHCP.
 if there's need for it.
 
 ## EXAMPLES
-A long example was give above in the SYNTAX section. Note that the
-"# /bin/sh -n" fake shebang was used to easily enable shell highlighting
-in gedit/pluma.
-
 If some clients need an custom xorg.conf file, create it in e.g.
 `/etc/ltsp/xorg-nvidia.conf`, and put the following in ltsp.conf
 to dynamically symlink it for those clients on boot:
 
 ```shell
 [pc01]
-LIKE=NVIDIA_CLIENTS
+INCLUDE=nvidia
 
-[NVIDIA_CLIENTS]
+[nvidia]
 POST_INIT_LN_XORG="ln -sf ../ltsp/xorg-nvidia.conf /etc/X11/xorg.conf"
 ```
 
@@ -171,7 +154,7 @@ include code. But it's usually best to keep it simple and put code in
 separate scripts.
 
 ```shell
-[default]
+[clients]
 # Set the root password to "qwer1234" for all clients.
 # The password hash contains ' and $, making it hard to escape it,
 # so use a "HEREDOC" instead.
@@ -179,10 +162,10 @@ separate scripts.
 sed 's|^root:[^:]*:|root:$6$p2LdWE6j$PDd1TUzGvvIkj9SE8wbw1gA/MD66tHHlStqi1.qyv860oK47UnKcafSKqGp7cbgZUPlgyPv6giCVyCSCdJt1b0:|' -i /etc/shadow
 EOF
 
-[initrd_bottom/default]
-# Putting commands under [applet/default] sections means that they will
-# only be run in that specific boot phase, not by all ltsp client applets.
-# The following commands work around LP: #345374 bug for sis clients.
+[initrd-bottom/]
+# Putting commands under [applet/] sections means that they will only be run
+# by that specific ltsp applet.
+# The following commands work around LP: #345374 bug for SiS clients.
 test -d /sys/module/sis190 || return 0
 ip link set dev "$DEVICE" mtu 1492
 ```

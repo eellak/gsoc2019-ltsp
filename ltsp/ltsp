@@ -113,10 +113,10 @@ debug_shell() {
     local cmd
     echo "${*:-"Emulating a shell, type \`return [0|1]\` to continue|exit:"}"
 
-    printf "debug:$(pwd)\$ "
+    printf "debug:%s\$ " "$(pwd)"
     while read -r cmd; do
         eval "$cmd" || true
-        printf "debug:$(pwd)\$ "
+        printf "debug:%s\$ " "$(pwd)"
     done
 }
 

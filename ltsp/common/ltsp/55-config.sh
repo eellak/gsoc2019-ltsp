@@ -36,29 +36,45 @@ EOF
 }
 
 eval_ini() {
-    local config applet
+    local config applet clients_section server_section sub_dir
 
     config=${1:-/etc/ltsp/ltsp.conf}
     applet=${2:-$_APPLET}
+    if [ -d /run/ltsp/client ]; then
+        clients_section=clients
+        # Server applets that run on clients should also evaluate [SERVER]
+        sub_dir=${_APPLET_DIR%/*}
+        sub_dir=${sub_dir##*/}
+        if [ "$sub_dir" = "server" ]; then
+            server_section=server
+        else
+            server_section=
+        fi
+    else
+        clients_section=
+        server_section=server
+    fi
     eval "$(ini2sh "$config")" || die "Error while evaluating $config"
-    re section_call unnamed default "$MAC_ADDRESS" "$IP_ADDRESS"
+    re section_call unnamed $clients_section common $server_section "$MAC_ADDRESS" "$IP_ADDRESS"
     # MAC/IP sections are allowed to set HOSTNAME
     re section_call "$HOSTNAME"
     if [ "${applet:-ltsp}" != "ltsp" ]; then
-        re section_call "$applet/default" "$applet/$MAC_ADDRESS" "$applet/$IP_ADDRESS" "$applet/$HOSTNAME"
+        re section_call "$applet/" "$applet/$MAC_ADDRESS" \
+            "$applet/$IP_ADDRESS" "$applet/$HOSTNAME"
     fi
 }
 
 # Convert an .ini file, like ltsp.conf, to a shell sourceable file.
 # The basic ideas are:
 # [a1:b2:c3:d4:*:*] becomes a function: section_a1_b2_c3_d4____() {
-# LIKE=old_monitor becomes a call: section_old_monitor
+# INCLUDE=old_monitor becomes a call: section_old_monitor
 # And a section_call() function is implemented to use like:
 #   section_call "unnamed"
-#   section_call "default"
+#   section_call "common"
+#   section_call "$applet/"
 #   section_call "$mac"
 #   section_call "$ip"
-#   section_call "$hostname"
+#   section_call "$applet/$hostname"
 # Use lowercase in parameters.
 # To name the functions something_* rather than section_*, use:
 #   ini2sh -v prefix=something_
@@ -74,7 +90,7 @@ BEGIN {
     }
     # The sections list, used later on in section_call()
     list=""
-    # Cope with parameters above the [Default] section, which is a user error
+    # Cope with parameters above all sections, which is a user error
     section_id=prefix "unnamed"
     print section_id "() {\n"\
         "# Prevent infinite recursion\n"\
@@ -92,9 +108,9 @@ if ($0 ~ /^[ ]*\[[^]]*\]/) {  # [Section]
         "test \"$" section_id "\" = 1 && return 0 || " section_id "=1"
     # Append the appropriate case line
     list=list "\n            " section ")  " section_id " \"$@\" ;;"
-} else if (tolower($0) ~ /^like *=/) {  # LIKE = xxx
+} else if (tolower($0) ~ /^include *=/) {  # INCLUDE = xxx
     value=tolower($0)
-    sub("like *= *", "", value)
+    sub("include *= *", "", value)
     print prefix value
 } else if ($0 ~ /^[a-zA-Z0-9_]* *=/) {  # VAR = xxx
     value=$0
@@ -106,7 +122,7 @@ if ($0 ~ /^[ ]*\[[^]]*\]/) {  # [Section]
 }
 END {
     print "}\n\n"\
-        "# Example usage: " prefix "call \"unnamed\" \"default\" \"$MAC\" \"$IP\" \"$lower_hostname\"\n"\
+        "# Example usage: " prefix "call \"unnamed\" \"clients\" \"$MAC\" \"$IP\" \"$lower_hostname\"\n"\
         prefix "call() {\n"\
         "    local section\n"\
         "\n"\
@@ -229,7 +245,7 @@ EOF
 }
 
 # We care about the IP/MAC used to connect to the LTSP server, not all of them
-# To handle multiple MACs in ltsp.conf, use LIKE=
+# To handle multiple MACs in ltsp.conf, use INCLUDE=
 network_vars() {
     test -n "$DEVICE" && test -n "$IP_ADDRESS" && test -n "$MAC_ADDRESS" &&
         return 0
